@@ -1,0 +1,101 @@
+.sidebar {
+  width: 280px;
+  background-color: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  height: fit-content;
+}
+
+.section {
+  margin-bottom: 2rem;
+}
+
+.section:last-child {
+  margin-bottom: 0;
+}
+
+.title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  color: var(--foreground);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.5rem;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.filterLink {
+  display: block;
+  padding: 0.5rem;
+  border-radius: 6px;
+  color: #4b5563;
+  text-decoration: none;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.filterLink:hover {
+  background-color: #f3f4f6;
+  color: var(--primary);
+}
+
+.filterLinkActive {
+  background-color: #fffbeb;
+  color: #b45309;
+  font-weight: 600;
+}
+
+.clearButton {
+  display: block;
+  width: 100%;
+  padding: 0.75rem;
+  background-color: #f3f4f6;
+  color: #4b5563;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  margin-top: 1rem;
+  transition: all 0.2s;
+}
+
+.clearButton:hover {
+  background-color: #e5e7eb;
+  color: var(--foreground);
+}
+
+@media (prefers-color-scheme: dark) {
+  .sidebar {
+    background-color: #18181b;
+  }
+  
+  .filterLink {
+    color: #a1a1aa;
+  }
+  
+  .filterLink:hover {
+    background-color: #27272a;
+    color: var(--primary);
+  }
+  
+  .filterLinkActive {
+    background-color: rgba(217, 119, 6, 0.1);
+    color: #fcd34d;
+  }
+  
+  .clearButton {
+    background-color: #27272a;
+    color: #a1a1aa;
+  }
+  
+  .clearButton:hover {
+    background-color: #3f3f46;
+    color: #fff;
+  }
+}
