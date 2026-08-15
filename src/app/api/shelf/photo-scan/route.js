@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { createWorker } from 'tesseract.js';
 import { getGames, updateGameLocation } from '@/lib/db';
 import { findBestGameMatch } from '@/lib/fuzzyMatch';
 
@@ -7,44 +6,32 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request) {
   try {
-    const formData = await request.formData();
-    const file = formData.get('image');
-    const targetLocation = formData.get('targetLocation')?.toString().trim() || '';
-
-    if (!file) {
-      return NextResponse.json({ error: "Aucun fichier image fourni." }, { status: 400 });
-    }
+    const body = await request.json();
+    const { targetLocation, text, lines = [] } = body;
 
     if (!targetLocation) {
       return NextResponse.json({ error: "Veuillez spécifier l'emplacement de la tablette." }, { status: 400 });
     }
 
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    // Récupérer toutes les lignes de texte analysées
+    let allLines = Array.isArray(lines) ? lines.map(l => typeof l === 'string' ? l.trim() : '').filter(Boolean) : [];
+    if (text && typeof text === 'string') {
+      const splitLines = text.split('\n').map(l => l.trim()).filter(l => l.length >= 2);
+      allLines = Array.from(new Set([...allLines, ...splitLines]));
+    }
 
-    // Initialiser le worker OCR Tesseract (français + anglais)
-    const worker = await createWorker(['fra', 'eng']);
-    const ocrResult = await worker.recognize(buffer);
-    await worker.terminate();
-
-    const fullText = ocrResult.data.text || '';
-    const lines = fullText
-      .split('\n')
-      .map(l => l.trim())
-      .filter(l => l.length >= 2);
-
-    // Récupérer tous les jeux de la collection
+    // Récupérer tous les jeux de la collection depuis SQLite
     const allGames = getGames() || [];
 
     // Déduplication stricte par ID de jeu : Map<gameId, ResultObject>
     const detectedGamesMap = new Map();
 
     // 1. Analyse ligne par ligne
-    for (const line of lines) {
+    for (const line of allLines) {
       const cleanLine = line.replace(/^[|!/\\_.,;:~*#@°^`'"]+|[|!/\\_.,;:~*#@°^`'"]+$/g, '').trim();
       if (cleanLine.length < 2) continue;
 
-      const match = findBestGameMatch(cleanLine, allGames, 0.45);
+      const match = findBestGameMatch(cleanLine, allGames, 0.42);
       if (match && match.game) {
         const gameId = match.game.id;
         const confidencePct = Math.round(match.similarity * 100);
@@ -54,7 +41,7 @@ export async function POST(request) {
             game: match.game,
             detectedText: cleanLine,
             confidence: confidencePct,
-            alreadyOnShelf: match.game.location === targetLocation,
+            alreadyOnShelf: match.game.location === targetLocation.trim(),
             previousLocation: match.game.location || null
           });
         }
@@ -62,9 +49,9 @@ export async function POST(request) {
     }
 
     // 2. Analyse sur des blocs combinés (pour les titres multi-lignes sur les boîtes)
-    for (let i = 0; i < lines.length - 1; i++) {
-      const combined = `${lines[i]} ${lines[i + 1]}`.trim();
-      const match = findBestGameMatch(combined, allGames, 0.5);
+    for (let i = 0; i < allLines.length - 1; i++) {
+      const combined = `${allLines[i]} ${allLines[i + 1]}`.trim();
+      const match = findBestGameMatch(combined, allGames, 0.48);
       if (match && match.game) {
         const gameId = match.game.id;
         const confidencePct = Math.round(match.similarity * 100);
@@ -74,7 +61,7 @@ export async function POST(request) {
             game: match.game,
             detectedText: combined,
             confidence: confidencePct,
-            alreadyOnShelf: match.game.location === targetLocation,
+            alreadyOnShelf: match.game.location === targetLocation.trim(),
             previousLocation: match.game.location || null
           });
         }
@@ -87,16 +74,15 @@ export async function POST(request) {
 
     return NextResponse.json({
       success: true,
-      targetLocation,
+      targetLocation: targetLocation.trim(),
       totalDetected: uniqueDetectedGames.length,
       games: uniqueDetectedGames,
-      rawOcrText: fullText
     });
 
   } catch (error) {
-    console.error("Erreur lors de l'analyse OCR de la tablette:", error);
+    console.error("Erreur lors de l'analyse des textes de la tablette:", error);
     return NextResponse.json({
-      error: "Erreur lors du traitement de l'image de la tablette.",
+      error: "Erreur lors du traitement des données.",
       details: error.message
     }, { status: 500 });
   }

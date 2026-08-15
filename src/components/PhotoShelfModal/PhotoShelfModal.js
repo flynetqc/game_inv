@@ -1,7 +1,58 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import { createWorker } from 'tesseract.js';
 import styles from './PhotoShelfModal.module.css';
+
+// Compresse et redimensionne une photo côté client (navigateur) pour éviter les erreurs de taille de payload
+async function compressImage(file, maxDimension = 1200, quality = 0.85) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".jpg", {
+                type: 'image/jpeg',
+                lastModified: Date.now(),
+              });
+              resolve(compressedFile);
+            } else {
+              resolve(file);
+            }
+          },
+          'image/jpeg',
+          quality
+        );
+      };
+      img.onerror = () => resolve(file);
+      img.src = e.target.result;
+    };
+    reader.onerror = () => resolve(file);
+    reader.readAsDataURL(file);
+  });
+}
 
 export default function PhotoShelfModal({ existingLocations = [], onClose, onScanSuccess }) {
   const [targetLocation, setTargetLocation] = useState('');
@@ -11,6 +62,7 @@ export default function PhotoShelfModal({ existingLocations = [], onClose, onSca
 
   const [scanning, setScanning] = useState(false);
   const [scanStatus, setScanStatus] = useState('');
+  const [scanProgress, setScanProgress] = useState(0);
   const [detectedGames, setDetectedGames] = useState([]);
   const [selectedGames, setSelectedGames] = useState({});
   const [saving, setSaving] = useState(false);
@@ -19,16 +71,24 @@ export default function PhotoShelfModal({ existingLocations = [], onClose, onSca
   const cameraInputRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  const handleSelectFile = (file) => {
+  const handleSelectFile = async (file) => {
     if (!file || !file.type.startsWith('image/')) {
       setError("Veuillez sélectionner un fichier image valide (JPG, PNG, WebP).");
       return;
     }
     setError(null);
-    setPhotoFile(file);
-    setPhotoPreviewUrl(URL.createObjectURL(file));
-    setDetectedGames([]);
-    setSelectedGames({});
+
+    try {
+      // Redimensionner et compresser immédiatement pour accélérer l'analyse
+      const compressed = await compressImage(file);
+      setPhotoFile(compressed);
+      setPhotoPreviewUrl(URL.createObjectURL(compressed));
+      setDetectedGames([]);
+      setSelectedGames({});
+    } catch (e) {
+      setPhotoFile(file);
+      setPhotoPreviewUrl(URL.createObjectURL(file));
+    }
   };
 
   const handleDragOver = (e) => {
@@ -62,7 +122,7 @@ export default function PhotoShelfModal({ existingLocations = [], onClose, onSca
   const handleRunOcrScan = async () => {
     const loc = targetLocation.trim();
     if (!loc) {
-      setError("Veuillez spécifier la tablette cible (ex: A1, B2) avant d'analyser la photo.");
+      setError("Veuillez spécifier la tablette cible (ex: A1, B4) avant d'analyser la photo.");
       return;
     }
     if (!photoFile) {
@@ -71,27 +131,50 @@ export default function PhotoShelfModal({ existingLocations = [], onClose, onSca
     }
 
     setScanning(true);
-    setScanStatus("Analyse visuelle et lecture des tranches de boîtes de jeux...");
+    setScanProgress(5);
+    setScanStatus("Initialisation du moteur de reconnaissance optique...");
     setError(null);
 
+    let worker = null;
     try {
-      const formData = new FormData();
-      formData.append('image', photoFile);
-      formData.append('targetLocation', loc);
+      // 1. Analyse OCR côté navigateur avec suivi de progression
+      worker = await createWorker('eng', 1, {
+        logger: m => {
+          if (m.status === 'recognizing text') {
+            const pct = Math.round((m.progress || 0) * 100);
+            setScanProgress(Math.max(10, pct));
+            setScanStatus(`Lecture des tranches de boîtes de jeux... (${pct}%)`);
+          } else if (m.status === 'loading tesseract core') {
+            setScanStatus("Chargement du moteur OCR...");
+          }
+        }
+      });
 
+      const ocrResult = await worker.recognize(photoFile);
+      const recognizedText = ocrResult.data?.text || '';
+      const recognizedLines = (ocrResult.data?.lines || []).map(l => l.text).filter(Boolean);
+
+      setScanStatus("Rapprochement intelligent avec votre collection de jeux...");
+
+      // 2. Rapprochement avec les 1 020 jeux via l'API
       const response = await fetch('/api/shelf/photo-scan', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          targetLocation: loc,
+          text: recognizedText,
+          lines: recognizedLines,
+        }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || data.details || "Erreur lors de l'analyse optique.");
+        throw new Error(data.error || data.details || "Erreur lors de l'analyse des textes.");
       }
 
       if (!data.games || data.games.length === 0) {
-        setError("Aucun jeu n'a été reconnu avec certitude sur cette photo. Essayez de cadrer de plus près les tranches de boîtes.");
+        setError("Aucun jeu n'a été reconnu avec certitude sur cette photo. Essayez de cadrer de plus près les tranches de boîtes bien éclairées.");
         setDetectedGames([]);
       } else {
         setDetectedGames(data.games);
@@ -107,6 +190,13 @@ export default function PhotoShelfModal({ existingLocations = [], onClose, onSca
       console.error(err);
       setError(err.message || "Impossible d'analyser l'image.");
     } finally {
+      if (worker) {
+        try {
+          await worker.terminate();
+        } catch (e) {
+          // Ignorer
+        }
+      }
       setScanning(false);
     }
   };
@@ -200,7 +290,7 @@ export default function PhotoShelfModal({ existingLocations = [], onClose, onSca
             </label>
             <input 
               type="text"
-              placeholder="Ex: A1, Tablette 3, Kallax B..."
+              placeholder="Ex: A1, B4, Tablette 3..."
               value={targetLocation}
               onChange={(e) => setTargetLocation(e.target.value)}
               className={styles.locationInput}
@@ -287,7 +377,7 @@ export default function PhotoShelfModal({ existingLocations = [], onClose, onSca
             </div>
           )}
 
-          {/* Bouton de lancement de l'analyse OCR si photo chargée mais pas encore scannée */}
+          {/* Bouton de lancement de l'analyse OCR */}
           {photoPreviewUrl && detectedGames.length === 0 && !scanning && (
             <button
               type="button"
@@ -299,13 +389,13 @@ export default function PhotoShelfModal({ existingLocations = [], onClose, onSca
             </button>
           )}
 
-          {/* Indicateur de chargement OCR */}
+          {/* Indicateur de chargement OCR avec pourcentage réel */}
           {scanning && (
             <div className={styles.scanningBox}>
               <div className={styles.spinner} />
               <span className={styles.scanStatus}>{scanStatus}</span>
               <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Recherche par comparaison avec vos 1 020 jeux...
+                {scanProgress > 0 ? `Progression : ${scanProgress}%` : "Traitement de l'image..."}
               </span>
             </div>
           )}
