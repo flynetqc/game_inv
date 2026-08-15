@@ -6,10 +6,17 @@ export const revalidate = 0;
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {
-  // Récupérer la collection initiale depuis SQLite (s'exécute côté serveur)
-  const initialGames = getGames();
-  const allMechanics = getAllMechanics();
-  const allThemes = getAllThemes();
+  let initialGames = [];
+  let allMechanics = [];
+  let allThemes = [];
+
+  try {
+    initialGames = getGames() || [];
+    allMechanics = getAllMechanics() || [];
+    allThemes = getAllThemes() || [];
+  } catch (error) {
+    console.error("Erreur serveur lors de la récupération des jeux:", error);
+  }
 
   return (
     <CollectionManager

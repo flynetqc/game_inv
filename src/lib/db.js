@@ -1,96 +1,118 @@
 import { DatabaseSync } from 'node:sqlite';
 import path from 'path';
+import fs from 'fs';
 
 let db;
 
-// Éviter de recréer de multiples connexions en mode développement Next.js (hot-reload)
-if (process.env.NODE_ENV === 'production') {
-  db = new DatabaseSync(path.join(process.cwd(), 'boardgames.db'));
-} else {
-  if (!global._sqliteDb) {
-    global._sqliteDb = new DatabaseSync(path.join(process.cwd(), 'boardgames.db'));
+function getDbInstance() {
+  if (global._sqliteDb) {
+    return global._sqliteDb;
   }
-  db = global._sqliteDb;
+
+  let dbPath = path.join(process.cwd(), 'boardgames.db');
+
+  // En environnement Vercel / AWS Lambda, le dossier source (/var/task) est en lecture seule.
+  // On copie la base SQLite vers /tmp (répertoire inscriptible) si elle n'existe pas encore dans /tmp.
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    const tmpDbPath = path.join('/tmp', 'boardgames.db');
+    if (!fs.existsSync(tmpDbPath)) {
+      if (fs.existsSync(dbPath)) {
+        try {
+          fs.copyFileSync(dbPath, tmpDbPath);
+        } catch (err) {
+          console.error("Erreur copie DB vers /tmp:", err);
+        }
+      }
+    }
+    dbPath = tmpDbPath;
+  }
+
+  const database = new DatabaseSync(dbPath);
+
+  // Initialisation des tables
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS games (
+      id INTEGER PRIMARY KEY,
+      title TEXT NOT NULL,
+      image_url TEXT,
+      thumbnail_url TEXT,
+      min_players INTEGER,
+      max_players INTEGER,
+      playing_time INTEGER,
+      year_published INTEGER,
+      description TEXT,
+      location TEXT,
+      rating REAL,
+      num_plays INTEGER DEFAULT 0,
+      item_type TEXT,
+      last_imported_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS mechanics (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS game_mechanics (
+      game_id INTEGER,
+      mechanic_id INTEGER,
+      PRIMARY KEY (game_id, mechanic_id),
+      FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
+      FOREIGN KEY (mechanic_id) REFERENCES mechanics(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS themes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS game_themes (
+      game_id INTEGER,
+      theme_id INTEGER,
+      PRIMARY KEY (game_id, theme_id),
+      FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
+      FOREIGN KEY (theme_id) REFERENCES themes(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS custom_tags (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS game_custom_tags (
+      game_id INTEGER,
+      tag_id INTEGER,
+      PRIMARY KEY (game_id, tag_id),
+      FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
+      FOREIGN KEY (tag_id) REFERENCES custom_tags(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Activer les clés étrangères, le mode WAL et le busy_timeout pour SQLite
+  try {
+    database.exec('PRAGMA foreign_keys = ON;');
+    database.exec('PRAGMA journal_mode = WAL;');
+    database.exec('PRAGMA busy_timeout = 5000;');
+  } catch (e) {
+    // Ignorer
+  }
+
+  // Migration pour ajouter item_type si la table existe déjà sans cette colonne
+  try {
+    database.exec('ALTER TABLE games ADD COLUMN item_type TEXT;');
+  } catch (e) {
+    // Déjà présent
+  }
+
+  global._sqliteDb = database;
+  return database;
 }
 
-// Initialisation des tables
-db.exec(`
-  CREATE TABLE IF NOT EXISTS games (
-    id INTEGER PRIMARY KEY,
-    title TEXT NOT NULL,
-    image_url TEXT,
-    thumbnail_url TEXT,
-    min_players INTEGER,
-    max_players INTEGER,
-    playing_time INTEGER,
-    year_published INTEGER,
-    description TEXT,
-    location TEXT,
-    rating REAL,
-    num_plays INTEGER DEFAULT 0,
-    item_type TEXT,
-    last_imported_at TEXT
-  );
-
-  CREATE TABLE IF NOT EXISTS mechanics (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT UNIQUE NOT NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS game_mechanics (
-    game_id INTEGER,
-    mechanic_id INTEGER,
-    PRIMARY KEY (game_id, mechanic_id),
-    FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
-    FOREIGN KEY (mechanic_id) REFERENCES mechanics(id) ON DELETE CASCADE
-  );
-
-  CREATE TABLE IF NOT EXISTS themes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT UNIQUE NOT NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS game_themes (
-    game_id INTEGER,
-    theme_id INTEGER,
-    PRIMARY KEY (game_id, theme_id),
-    FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
-    FOREIGN KEY (theme_id) REFERENCES themes(id) ON DELETE CASCADE
-  );
-  CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY,
-    value TEXT
-  );
-
-  CREATE TABLE IF NOT EXISTS custom_tags (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT UNIQUE NOT NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS game_custom_tags (
-    game_id INTEGER,
-    tag_id INTEGER,
-    PRIMARY KEY (game_id, tag_id),
-    FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
-    FOREIGN KEY (tag_id) REFERENCES custom_tags(id) ON DELETE CASCADE
-  );
-`);
-
-// Activer les clés étrangères, le mode WAL et le busy_timeout pour SQLite
-db.exec('PRAGMA foreign_keys = ON;');
-try {
-  db.exec('PRAGMA journal_mode = WAL;');
-  db.exec('PRAGMA busy_timeout = 5000;');
-} catch (e) {
-  // Ignorer si déjà configuré
-}
-
-// Migration pour ajouter item_type si la table existe déjà sans cette colonne
-try {
-  db.exec('ALTER TABLE games ADD COLUMN item_type TEXT;');
-} catch (e) {
-  // La colonne existe déjà ou une autre erreur s'est produite
-}
+db = getDbInstance();
 
 /**
  * Récupère une valeur de configuration
