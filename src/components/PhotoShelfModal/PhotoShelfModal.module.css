@@ -72,6 +72,26 @@
   overflow-y: auto;
   flex-grow: 1;
   min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f8fafc;
+}
+
+.body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.body::-webkit-scrollbar-track {
+  background: #f8fafc;
+  border-radius: 4px;
+}
+
+.body::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.body::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
 }
 
 /* Zone d'emplacement cible */
@@ -212,11 +232,10 @@
   box-shadow: 0 4px 12px rgba(126, 34, 206, 0.25);
 }
 
-/* Aperçu de la photo chargée */
 .photoPreviewBox {
   position: relative;
   width: 100%;
-  max-height: 220px;
+  max-height: 140px;
   border-radius: 12px;
   overflow: hidden;
   border: 1px solid var(--border-color);
@@ -224,24 +243,25 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: max-height 0.3s ease;
 }
 
 .photoPreviewImg {
   max-width: 100%;
-  max-height: 220px;
+  max-height: 140px;
   object-fit: contain;
 }
 
 .removePhotoBtn {
   position: absolute;
-  top: 0.75rem;
-  right: 0.75rem;
-  background: rgba(15, 23, 42, 0.75);
+  top: 0.5rem;
+  right: 0.5rem;
+  background: rgba(15, 23, 42, 0.85);
   border: none;
   color: white;
-  padding: 0.35rem 0.75rem;
-  border-radius: 8px;
-  font-size: 0.78rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
   font-weight: 700;
   cursor: pointer;
   backdrop-filter: blur(6px);
@@ -255,7 +275,7 @@
 /* Recherche manuelle de jeux manquants */
 .manualSearchSection {
   background: #f8fafc;
-  border: 1px dashed #cbd5e1;
+  border: 1.5px dashed #cbd5e1;
   border-radius: 12px;
   padding: 0.85rem;
   display: flex;
@@ -283,7 +303,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-  max-height: 140px;
+  max-height: 160px;
   overflow-y: auto;
 }
 
@@ -291,11 +311,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.4rem 0.65rem;
+  padding: 0.45rem 0.75rem;
   background: #ffffff;
   border: 1px solid var(--border-color);
   border-radius: 6px;
-  font-size: 0.82rem;
+  font-size: 0.84rem;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s;
@@ -347,6 +367,7 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 0.5rem;
+  padding-top: 0.25rem;
 }
 
 .dedupeNotice {
@@ -366,8 +387,8 @@
   display: flex;
   flex-direction: column;
   gap: 0.65rem;
-  max-height: 280px;
-  overflow-y: auto;
+  /* La liste s'étend naturellement dans .body pour supprimer la double scrollbar étriquée */
+  min-height: 120px;
 }
 
 .gameRow {

@@ -106,17 +106,16 @@ export function calculateTitleSimilarity(titleA, titleB) {
   const normA = normalizeTitle(titleA);
   const normB = normalizeTitle(titleB);
 
-  // 1. Egalité stricte après normalisation
+  // 1. Égalité exacte après normalisation
   if (normA === normB) return 1.0;
   if (normA.length === 0 || normB.length === 0) return 0;
 
-  // 2. Inclusion complète de chaîne
-  if (normA.length > 3 && normB.length > 3) {
-    if (normA.includes(normB) || normB.includes(normA)) {
-      const lengthRatio = Math.min(normA.length, normB.length) / Math.max(normA.length, normB.length);
-      if (lengthRatio > 0.6) {
-        return 0.85 + (lengthRatio * 0.1);
-      }
+  // 2. Inclusion complète (l'un contient l'autre, ex: "ring circus" dans "3 ring circus" ou "mini express" dans "mini express map pack")
+  if (normA.includes(normB) || normB.includes(normA)) {
+    const minLen = Math.min(normA.length, normB.length);
+    const maxLen = Math.max(normA.length, normB.length);
+    if (minLen >= 3) {
+      return Math.max(0.75, minLen / maxLen);
     }
   }
 

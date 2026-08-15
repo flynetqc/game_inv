@@ -164,9 +164,41 @@ export default function PhotoShelfModal({ allGames = [], existingLocations = [],
         }
       });
 
+      // 1a. Analyse OCR horizontale (boîtes à plat)
       const ocrResult = await worker.recognize(photoFile);
-      const recognizedText = ocrResult.data?.text || '';
-      const recognizedLines = (ocrResult.data?.lines || []).map(l => l.text).filter(Boolean);
+      let recognizedText = ocrResult.data?.text || '';
+      let recognizedLines = (ocrResult.data?.lines || []).map(l => l.text).filter(Boolean);
+
+      // 1b. Analyse OCR verticale (rotation 90° pour les boîtes debout)
+      try {
+        if (photoPreviewUrl) {
+          const img = new Image();
+          img.src = photoPreviewUrl;
+          await new Promise(r => { img.onload = r; });
+          
+          const rotCanvas = document.createElement('canvas');
+          rotCanvas.width = img.height;
+          rotCanvas.height = img.width;
+          const ctx = rotCanvas.getContext('2d');
+          ctx.translate(rotCanvas.width / 2, rotCanvas.height / 2);
+          ctx.rotate((90 * Math.PI) / 180);
+          ctx.drawImage(img, -img.width / 2, -img.height / 2);
+
+          const rotBlob = await new Promise(r => rotCanvas.toBlob(r, 'image/jpeg', 0.85));
+          if (rotBlob) {
+            const rotResult = await worker.recognize(rotBlob);
+            if (rotResult.data?.text) {
+              recognizedText += '\n' + rotResult.data.text;
+            }
+            if (rotResult.data?.lines) {
+              const rotLines = rotResult.data.lines.map(l => l.text).filter(Boolean);
+              recognizedLines = Array.from(new Set([...recognizedLines, ...rotLines]));
+            }
+          }
+        }
+      } catch (rotErr) {
+        console.warn("Erreur passage rotation OCR:", rotErr);
+      }
 
       setScanStatus("Rapprochement intelligent avec votre collection...");
 
