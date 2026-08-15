@@ -189,3 +189,34 @@ export function matchInventoryToCatalog(inventoryRows, catalogGames) {
     missingCatalogGames
   };
 }
+
+/**
+ * Trouve le meilleur jeu correspondant pour une chaîne de texte donnée.
+ * @param {string} text 
+ * @param {Array} catalogGames 
+ * @param {number} minThreshold 
+ * @returns {{ game: Object, similarity: number } | null}
+ */
+export function findBestGameMatch(text, catalogGames, minThreshold = 0.5) {
+  if (!text || !catalogGames || catalogGames.length === 0) return null;
+
+  let bestMatch = null;
+  let highestScore = 0;
+
+  for (const game of catalogGames) {
+    const score = calculateTitleSimilarity(text, game.title);
+    if (score > highestScore) {
+      highestScore = score;
+      bestMatch = game;
+    }
+  }
+
+  if (bestMatch && highestScore >= minThreshold) {
+    return {
+      game: bestMatch,
+      similarity: highestScore
+    };
+  }
+
+  return null;
+}
