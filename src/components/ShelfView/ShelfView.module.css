@@ -1,0 +1,312 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+  width: 100%;
+  padding-bottom: 3rem;
+  position: relative;
+}
+
+.summaryHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--surface-light);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  padding: 1rem 1.5rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.summaryTitle {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.summaryCount {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+/* Shelf Group (Une Tablette) */
+.shelfGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  position: relative;
+  overflow: visible;
+}
+
+.shelfLabelRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  padding: 0 0.5rem;
+}
+
+.shelfBadge {
+  background: var(--primary);
+  color: white;
+  font-weight: 800;
+  font-size: 0.85rem;
+  padding: 0.3rem 0.85rem;
+  border-radius: 20px;
+  box-shadow: 0 2px 8px rgba(234, 88, 12, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.shelfGameCount {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+/* Alignement des tranches sur la tablette */
+.spineRack {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  padding: 0 1.5rem;
+  min-height: 230px;
+  position: relative;
+  z-index: 2;
+  overflow-x: auto;
+  overflow-y: visible;
+  padding-bottom: 2px;
+}
+
+/* Planche de bois de la tablette */
+.shelfPlank {
+  height: 18px;
+  background: linear-gradient(180deg, #d4a373 0%, #a3704c 60%, #7f5539 100%);
+  border-radius: 4px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.15), inset 0 2px 3px rgba(255, 255, 255, 0.4);
+  position: relative;
+  z-index: 3;
+  margin-top: -2px;
+  border: 1px solid #b07d5b;
+}
+
+.shelfPlank::after {
+  content: '';
+  position: absolute;
+  bottom: -10px;
+  left: 3%;
+  right: 3%;
+  height: 10px;
+  background: rgba(0, 0, 0, 0.08);
+  filter: blur(6px);
+}
+
+/* Tranche de boîte de jeu (Box Spine) */
+.spine {
+  flex-shrink: 0;
+  border-radius: 4px 4px 1px 1px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 0.2rem;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+  box-shadow: inset -2px 0 5px rgba(0, 0, 0, 0.25), inset 2px 0 3px rgba(255, 255, 255, 0.25), 2px 0 6px rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(0, 0, 0, 0.15);
+}
+
+.spine:hover {
+  transform: translateY(-10px) scale(1.04);
+  z-index: 10;
+  box-shadow: inset -2px 0 5px rgba(0, 0, 0, 0.2), inset 2px 0 3px rgba(255, 255, 255, 0.4), 0 12px 24px rgba(15, 23, 42, 0.25);
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+.spineTopRating {
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.95);
+  background: rgba(0, 0, 0, 0.3);
+  padding: 0.1rem 0.25rem;
+  border-radius: 4px;
+  line-height: 1;
+}
+
+.spineTitleWrapper {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  text-align: center;
+  font-weight: 800;
+  font-size: 0.85rem;
+  letter-spacing: 0.3px;
+  color: white;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-height: 140px;
+  margin: auto 0;
+}
+
+.spineBottomYear {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Floating Fixed Overlay Popup au Survol (Z-Index 99999) */
+.fixedPopup {
+  position: fixed;
+  transform: translate(-50%, -100%);
+  width: 260px;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  padding: 1rem;
+  box-shadow: 0 20px 45px -4px rgba(15, 23, 42, 0.35), 0 6px 16px rgba(15, 23, 42, 0.15);
+  z-index: 99999;
+  pointer-events: auto;
+  animation: popupFade 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.popupFlipped {
+  transform: translate(-50%, 0);
+}
+
+@keyframes popupFade {
+  from { opacity: 0; scale: 0.95; }
+  to { opacity: 1; scale: 1; }
+}
+
+.fixedPopup::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 8px 8px 0 8px;
+  border-style: solid;
+  border-color: #ffffff transparent transparent transparent;
+}
+
+.popupFlipped::after {
+  top: auto;
+  bottom: 100%;
+  border-width: 0 8px 8px 8px;
+  border-color: transparent transparent #ffffff transparent;
+}
+
+.popupImageWrapper {
+  width: 100%;
+  height: 140px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #f8fafc 0%, #edf2f7 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-color);
+}
+
+.popupImage {
+  max-width: 90%;
+  max-height: 90%;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.15));
+}
+
+.popupPlaceholder {
+  font-size: 2.5rem;
+}
+
+.popupContent {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.popupTitle {
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--text-main);
+  line-height: 1.25;
+}
+
+.popupMeta {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.popupRating {
+  color: #b45309;
+  background: #fffbeb;
+  padding: 0.15rem 0.45rem;
+  border-radius: 12px;
+  font-weight: 800;
+}
+
+.popupBtn {
+  margin-top: 0.2rem;
+  background: var(--primary);
+  border: none;
+  color: white;
+  padding: 0.45rem 0.85rem;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(234, 88, 12, 0.25);
+}
+
+.popupBtn:hover {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+}
+
+/* État Vide */
+.emptyState {
+  text-align: center;
+  padding: 4rem 2rem;
+  background: var(--surface-light);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.emptyIcon {
+  font-size: 4rem;
+}
+
+.emptyState h3 {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.emptyState p {
+  color: var(--text-muted);
+  font-size: 0.92rem;
+  max-width: 500px;
+  line-height: 1.5;
+}

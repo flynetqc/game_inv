@@ -13,8 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "Mes Recettes",
-  description: "Gérez vos recettes et planifiez vos menus.",
+  title: "GeekShelf - Ma Collection BGG",
+  description: "Votre bibliothèque locale de jeux de société BoardGameGeek.",
+  referrer: "no-referrer",
 };
 
 export default function RootLayout({ children }) {
@@ -23,6 +24,9 @@ export default function RootLayout({ children }) {
       lang="fr"
       className={`${geistSans.variable} ${geistMono.variable}`}
     >
+      <head>
+        <meta name="referrer" content="no-referrer" />
+      </head>
       <body>
         <Header />
         {children}
