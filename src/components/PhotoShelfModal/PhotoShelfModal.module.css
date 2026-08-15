@@ -252,6 +252,61 @@
   background: #ef4444;
 }
 
+/* Recherche manuelle de jeux manquants */
+.manualSearchSection {
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  padding: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.manualSearchInput {
+  background: #ffffff;
+  border: 1.5px solid var(--border-color);
+  padding: 0.55rem 0.85rem;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  outline: none;
+  width: 100%;
+  transition: border-color 0.2s ease;
+}
+
+.manualSearchInput:focus {
+  border-color: var(--primary);
+}
+
+.manualSearchResults {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+.manualSearchItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 0.65rem;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.manualSearchItem:hover {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #2563eb;
+}
+
 /* Analyse en cours */
 .scanningBox {
   display: flex;

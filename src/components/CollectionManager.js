@@ -567,6 +567,7 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
       {/* Modale de Scan Photo d'étagère / tablette */}
       {isPhotoShelfOpen && (
         <PhotoShelfModal
+          allGames={games}
           existingLocations={allExistingLocations}
           onClose={() => setIsPhotoShelfOpen(false)}
           onScanSuccess={handlePhotoScanSuccess}

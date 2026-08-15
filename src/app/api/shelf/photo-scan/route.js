@@ -4,34 +4,96 @@ import { findBestGameMatch } from '@/lib/fuzzyMatch';
 
 export const dynamic = 'force-dynamic';
 
+async function detectGamesWithGeminiVision(base64Image) {
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (!apiKey || !base64Image) return null;
+
+  try {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: "Examine this photo of a shelf containing board games. List ALL board game titles and expansion titles visible on the boxes (both horizontal and vertical boxes, including stylized fonts like 3 Ring Circus, boop, Mini Express, Splendor, etc.). Return ONLY a valid JSON array of strings containing the game titles, with no extra text or markdown formatting. Example: [\"Boop\", \"3 Ring Circus\", \"Mini Express\"]" },
+            { inline_data: { mime_type: "image/jpeg", data: base64Image } }
+          ]
+        }]
+      })
+    });
+
+    if (!response.ok) {
+      console.warn("Gemini Vision API status:", response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!textContent) return null;
+
+    const cleanJson = textContent.replace(/```json/gi, '').replace(/```/g, '').trim();
+    const parsed = JSON.parse(cleanJson);
+    if (Array.isArray(parsed)) {
+      return parsed;
+    }
+  } catch (e) {
+    console.error("Erreur Gemini Vision:", e);
+  }
+  return null;
+}
+
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { targetLocation, text, lines = [] } = body;
+    const { targetLocation, text, lines = [], imageBase64 } = body;
 
     if (!targetLocation) {
       return NextResponse.json({ error: "Veuillez spécifier l'emplacement de la tablette." }, { status: 400 });
     }
 
-    // Récupérer toutes les lignes de texte analysées
+    const allGames = getGames() || [];
+    const detectedGamesMap = new Map();
+
+    // 1. Tenter d'abord la reconnaissance Vision IA (Gemini) si une clé API est configurée
+    let aiDetectedTitles = [];
+    if (imageBase64) {
+      aiDetectedTitles = (await detectGamesWithGeminiVision(imageBase64)) || [];
+    }
+
+    if (aiDetectedTitles.length > 0) {
+      for (const title of aiDetectedTitles) {
+        const match = findBestGameMatch(title, allGames, 0.40);
+        if (match && match.game) {
+          const gameId = match.game.id;
+          const confidencePct = Math.round(match.similarity * 100);
+
+          if (!detectedGamesMap.has(gameId) || detectedGamesMap.get(gameId).confidence < confidencePct) {
+            detectedGamesMap.set(gameId, {
+              game: match.game,
+              detectedText: title,
+              confidence: Math.max(90, confidencePct),
+              alreadyOnShelf: match.game.location === targetLocation.trim(),
+              previousLocation: match.game.location || null
+            });
+          }
+        }
+      }
+    }
+
+    // 2. Si l'IA n'est pas configurée ou pour compléter, utiliser les lignes OCR
     let allLines = Array.isArray(lines) ? lines.map(l => typeof l === 'string' ? l.trim() : '').filter(Boolean) : [];
     if (text && typeof text === 'string') {
       const splitLines = text.split('\n').map(l => l.trim()).filter(l => l.length >= 2);
       allLines = Array.from(new Set([...allLines, ...splitLines]));
     }
 
-    // Récupérer tous les jeux de la collection depuis SQLite
-    const allGames = getGames() || [];
-
-    // Déduplication stricte par ID de jeu : Map<gameId, ResultObject>
-    const detectedGamesMap = new Map();
-
-    // 1. Analyse ligne par ligne
+    // 2a. Analyse ligne par ligne
     for (const line of allLines) {
       const cleanLine = line.replace(/^[|!/\\_.,;:~*#@°^`'"]+|[|!/\\_.,;:~*#@°^`'"]+$/g, '').trim();
       if (cleanLine.length < 2) continue;
 
-      const match = findBestGameMatch(cleanLine, allGames, 0.42);
+      const match = findBestGameMatch(cleanLine, allGames, 0.40);
       if (match && match.game) {
         const gameId = match.game.id;
         const confidencePct = Math.round(match.similarity * 100);
@@ -48,10 +110,10 @@ export async function POST(request) {
       }
     }
 
-    // 2. Analyse sur des blocs combinés (pour les titres multi-lignes sur les boîtes)
+    // 2b. Analyse sur des blocs combinés (2 lignes)
     for (let i = 0; i < allLines.length - 1; i++) {
       const combined = `${allLines[i]} ${allLines[i + 1]}`.trim();
-      const match = findBestGameMatch(combined, allGames, 0.48);
+      const match = findBestGameMatch(combined, allGames, 0.45);
       if (match && match.game) {
         const gameId = match.game.id;
         const confidencePct = Math.round(match.similarity * 100);
@@ -77,6 +139,7 @@ export async function POST(request) {
       targetLocation: targetLocation.trim(),
       totalDetected: uniqueDetectedGames.length,
       games: uniqueDetectedGames,
+      usedAiVision: aiDetectedTitles.length > 0
     });
 
   } catch (error) {
@@ -100,7 +163,6 @@ export async function PATCH(request) {
       return NextResponse.json({ error: "Aucun jeu sélectionné à enregistrer." }, { status: 400 });
     }
 
-    // Dédupliquer les IDs reçus pour garantir qu'aucun doublon n'est inséré
     const uniqueGameIds = Array.from(new Set(gameIds));
 
     let updatedCount = 0;

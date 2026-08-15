@@ -4,8 +4,8 @@ import { useState, useRef } from 'react';
 import { createWorker } from 'tesseract.js';
 import styles from './PhotoShelfModal.module.css';
 
-// Compresse et redimensionne une photo côté client (navigateur) pour éviter les erreurs de taille de payload
-async function compressImage(file, maxDimension = 1200, quality = 0.85) {
+// Compresse et redimensionne une photo côté client
+async function compressImage(file, maxDimension = 1400, quality = 0.85) {
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -37,26 +37,38 @@ async function compressImage(file, maxDimension = 1200, quality = 0.85) {
                 type: 'image/jpeg',
                 lastModified: Date.now(),
               });
-              resolve(compressedFile);
+              resolve({
+                file: compressedFile,
+                base64: canvas.toDataURL('image/jpeg', quality).split(',')[1]
+              });
             } else {
-              resolve(file);
+              resolve({ file, base64: null });
             }
           },
           'image/jpeg',
           quality
         );
       };
-      img.onerror = () => resolve(file);
+      img.onerror = () => resolve({ file, base64: null });
       img.src = e.target.result;
     };
-    reader.onerror = () => resolve(file);
+    reader.onerror = () => resolve({ file, base64: null });
     reader.readAsDataURL(file);
   });
 }
 
-export default function PhotoShelfModal({ existingLocations = [], onClose, onScanSuccess }) {
+function stripDiacritics(str) {
+  if (!str) return '';
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+export default function PhotoShelfModal({ allGames = [], existingLocations = [], onClose, onScanSuccess }) {
   const [targetLocation, setTargetLocation] = useState('');
   const [photoFile, setPhotoFile] = useState(null);
+  const [photoBase64, setPhotoBase64] = useState(null);
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState(null);
   const [isDragOver, setIsDragOver] = useState(false);
 
@@ -67,6 +79,9 @@ export default function PhotoShelfModal({ existingLocations = [], onClose, onSca
   const [selectedGames, setSelectedGames] = useState({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+
+  // Recherche manuelle de jeux manquants
+  const [manualQuery, setManualQuery] = useState('');
 
   const cameraInputRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -79,9 +94,9 @@ export default function PhotoShelfModal({ existingLocations = [], onClose, onSca
     setError(null);
 
     try {
-      // Redimensionner et compresser immédiatement pour accélérer l'analyse
-      const compressed = await compressImage(file);
+      const { file: compressed, base64 } = await compressImage(file);
       setPhotoFile(compressed);
+      setPhotoBase64(base64);
       setPhotoPreviewUrl(URL.createObjectURL(compressed));
       setDetectedGames([]);
       setSelectedGames({});
@@ -113,6 +128,7 @@ export default function PhotoShelfModal({ existingLocations = [], onClose, onSca
       URL.revokeObjectURL(photoPreviewUrl);
     }
     setPhotoFile(null);
+    setPhotoBase64(null);
     setPhotoPreviewUrl(null);
     setDetectedGames([]);
     setSelectedGames({});
@@ -132,20 +148,18 @@ export default function PhotoShelfModal({ existingLocations = [], onClose, onSca
 
     setScanning(true);
     setScanProgress(5);
-    setScanStatus("Initialisation du moteur de reconnaissance optique...");
+    setScanStatus("Analyse visuelle des boîtes de jeux...");
     setError(null);
 
     let worker = null;
     try {
-      // 1. Analyse OCR côté navigateur avec suivi de progression
+      // 1. Analyse OCR côté client
       worker = await createWorker('eng', 1, {
         logger: m => {
           if (m.status === 'recognizing text') {
             const pct = Math.round((m.progress || 0) * 100);
             setScanProgress(Math.max(10, pct));
-            setScanStatus(`Lecture des tranches de boîtes de jeux... (${pct}%)`);
-          } else if (m.status === 'loading tesseract core') {
-            setScanStatus("Chargement du moteur OCR...");
+            setScanStatus(`Lecture des tranches et façades de boîtes... (${pct}%)`);
           }
         }
       });
@@ -154,9 +168,9 @@ export default function PhotoShelfModal({ existingLocations = [], onClose, onSca
       const recognizedText = ocrResult.data?.text || '';
       const recognizedLines = (ocrResult.data?.lines || []).map(l => l.text).filter(Boolean);
 
-      setScanStatus("Rapprochement intelligent avec votre collection de jeux...");
+      setScanStatus("Rapprochement intelligent avec votre collection...");
 
-      // 2. Rapprochement avec les 1 020 jeux via l'API
+      // 2. Rapprochement combiné (IA Vision si clé disponible + OCR)
       const response = await fetch('/api/shelf/photo-scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -164,6 +178,7 @@ export default function PhotoShelfModal({ existingLocations = [], onClose, onSca
           targetLocation: loc,
           text: recognizedText,
           lines: recognizedLines,
+          imageBase64: photoBase64
         }),
       });
 
@@ -174,11 +189,10 @@ export default function PhotoShelfModal({ existingLocations = [], onClose, onSca
       }
 
       if (!data.games || data.games.length === 0) {
-        setError("Aucun jeu n'a été reconnu avec certitude sur cette photo. Essayez de cadrer de plus près les tranches de boîtes bien éclairées.");
+        setError("Aucun jeu n'a été reconnu automatiquement. Vous pouvez ajouter les jeux manqués ci-dessous grâce à la barre de recherche rapide.");
         setDetectedGames([]);
       } else {
         setDetectedGames(data.games);
-        // Cocher par défaut tous les jeux détectés
         const initialSelected = {};
         data.games.forEach((item) => {
           initialSelected[item.game.id] = true;
@@ -199,6 +213,35 @@ export default function PhotoShelfModal({ existingLocations = [], onClose, onSca
       }
       setScanning(false);
     }
+  };
+
+  // Ajout manuel d'un jeu manqué avec déduplication
+  const handleAddManualGame = (game) => {
+    if (!game) return;
+
+    setDetectedGames(prev => {
+      // Éviter les doublons
+      if (prev.some(item => item.game.id === game.id)) {
+        return prev;
+      }
+      return [
+        {
+          game,
+          detectedText: "Ajout manuel",
+          confidence: 100,
+          alreadyOnShelf: game.location === targetLocation.trim(),
+          previousLocation: game.location || null
+        },
+        ...prev
+      ];
+    });
+
+    setSelectedGames(prev => ({
+      ...prev,
+      [game.id]: true
+    }));
+
+    setManualQuery('');
   };
 
   const handleToggleGame = (gameId) => {
@@ -264,6 +307,14 @@ export default function PhotoShelfModal({ existingLocations = [], onClose, onSca
 
   const selectedCount = Object.values(selectedGames).filter(Boolean).length;
 
+  // Filtrer les jeux pour l'ajout manuel
+  const normalizedQuery = stripDiacritics(manualQuery.trim());
+  const manualSuggestions = normalizedQuery.length >= 2
+    ? allGames
+        .filter(g => stripDiacritics(g.title).includes(normalizedQuery))
+        .slice(0, 5)
+    : [];
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
@@ -290,7 +341,7 @@ export default function PhotoShelfModal({ existingLocations = [], onClose, onSca
             </label>
             <input 
               type="text"
-              placeholder="Ex: A1, B4, Tablette 3..."
+              placeholder="Ex: A1, B4, Kallax 3..."
               value={targetLocation}
               onChange={(e) => setTargetLocation(e.target.value)}
               className={styles.locationInput}
@@ -329,7 +380,6 @@ export default function PhotoShelfModal({ existingLocations = [], onClose, onSca
                 Cadrez les tranches ou couvertures des boîtes bien droites
               </span>
 
-              {/* Inputs masqués pour mobile & desktop */}
               <input
                 ref={cameraInputRef}
                 type="file"
@@ -378,18 +428,18 @@ export default function PhotoShelfModal({ existingLocations = [], onClose, onSca
           )}
 
           {/* Bouton de lancement de l'analyse OCR */}
-          {photoPreviewUrl && detectedGames.length === 0 && !scanning && (
+          {photoPreviewUrl && !scanning && (
             <button
               type="button"
               className={styles.confirmBtn}
               onClick={handleRunOcrScan}
               style={{ width: '100%', justifyContent: 'center' }}
             >
-              🔍 Lancer la reconnaissance de la tablette
+              🔍 {detectedGames.length > 0 ? "Ré-analyser la photo" : "Lancer la reconnaissance de la tablette"}
             </button>
           )}
 
-          {/* Indicateur de chargement OCR avec pourcentage réel */}
+          {/* Indicateur de chargement OCR */}
           {scanning && (
             <div className={styles.scanningBox}>
               <div className={styles.spinner} />
@@ -400,12 +450,41 @@ export default function PhotoShelfModal({ existingLocations = [], onClose, onSca
             </div>
           )}
 
+          {/* Recherche manuelle pour compléter rapidement un jeu manqué */}
+          <div className={styles.manualSearchSection}>
+            <label style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span>➕</span> Ajouter manuellement un jeu manqué à cette tablette :
+            </label>
+            <input
+              type="text"
+              placeholder="Tapez le titre d'un jeu (ex: Boop, 3 Ring Circus, Splendor...)"
+              value={manualQuery}
+              onChange={(e) => setManualQuery(e.target.value)}
+              className={styles.manualSearchInput}
+            />
+
+            {manualSuggestions.length > 0 && (
+              <div className={styles.manualSearchResults}>
+                {manualSuggestions.map((game) => (
+                  <div
+                    key={game.id}
+                    className={styles.manualSearchItem}
+                    onClick={() => handleAddManualGame(game)}
+                  >
+                    <span>{game.title} {game.year_published ? `(${game.year_published})` : ''}</span>
+                    <span style={{ color: '#2563eb', fontWeight: 800 }}>+ Ajouter</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* 3. Résultats détectés dédupliqués */}
           {detectedGames.length > 0 && !scanning && (
             <>
               <div className={styles.resultsHeader}>
                 <span style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--text-main)' }}>
-                  🎲 {detectedGames.length} jeu{detectedGames.length > 1 ? 'x détectés' : ' détecté'}
+                  🎲 {detectedGames.length} jeu{detectedGames.length > 1 ? 'x sur la tablette' : ' sur la tablette'}
                 </span>
                 
                 <span className={styles.dedupeNotice}>
@@ -464,7 +543,7 @@ export default function PhotoShelfModal({ existingLocations = [], onClose, onSca
                         <span className={styles.gameTitle}>{game.title}</span>
                         <div className={styles.gameMeta}>
                           {game.year_published && <span>({game.year_published})</span>}
-                          {detectedText && <span className={styles.ocrTag}>Texte lu : "{detectedText}"</span>}
+                          {detectedText && <span className={styles.ocrTag}>Origine : {detectedText}</span>}
                           {previousLocation && !alreadyOnShelf && (
                             <span style={{ color: '#2563eb', fontWeight: '600' }}>Était sur : {previousLocation}</span>
                           )}
