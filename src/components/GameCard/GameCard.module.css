@@ -359,13 +359,49 @@
   transform: translateY(-1px);
 }
 
-.listNoLocation {
-  background: #f8fafc;
-  color: var(--text-muted);
-  border: 1px dashed var(--border-subtle);
-}
-
 .listNoLocation:hover {
   background: #f1f5f9;
   color: var(--text-main);
+}
+
+@media (max-width: 640px) {
+  .card {
+    padding: 0.85rem;
+    border-radius: 14px;
+  }
+
+  .title {
+    font-size: 0.95rem;
+    min-height: auto;
+  }
+
+  .info {
+    padding: 0.85rem 0 0.25rem 0;
+    gap: 0.4rem;
+  }
+
+  .listCard {
+    flex-wrap: wrap;
+    gap: 0.65rem;
+    padding: 0.75rem;
+  }
+
+  .listInfo {
+    min-width: 160px;
+  }
+
+  .listMetaInfo {
+    width: 100%;
+    justify-content: flex-start;
+    gap: 0.6rem;
+  }
+
+  .listLocationWrapper {
+    width: 100%;
+  }
+
+  .listLocationBadge {
+    width: 100%;
+    justify-content: center;
+  }
 }
