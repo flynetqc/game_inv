@@ -602,7 +602,7 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
               </div>
             </div>
 
-            {(searchQuery || selectedTheme || selectedMechanic || selectedCustomTag || playerCount || locationFilter !== 'all' || itemTypeFilter !== 'all') && (
+            {(searchQuery || selectedTheme || selectedMechanic || selectedCustomTag || playerCount || itemTypeFilter !== 'all') && (
               <button 
                 onClick={handleResetFilters} 
                 className={styles.resetButton}
