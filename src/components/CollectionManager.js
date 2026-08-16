@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import GameCard from './GameCard/GameCard';
 import GameDetailModal from './GameDetailModal/GameDetailModal';
 import ImportModal from './ImportModal/ImportModal';
@@ -44,13 +44,41 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
   const [quickSaving, setQuickSaving] = useState(false);
   const [quickError, setQuickError] = useState(null);
 
-  // Mettre à jour un jeu dans l'état local
+  // Charger les modifications persistées dans le navigateur (résout les redémarrages serverless Vercel)
+  useEffect(() => {
+    try {
+      const savedOverrides = localStorage.getItem('geekshelf_game_overrides');
+      if (savedOverrides) {
+        const overrides = JSON.parse(savedOverrides);
+        setGames(prevGames =>
+          prevGames.map(game => {
+            if (overrides[game.id]) {
+              return { ...game, ...overrides[game.id] };
+            }
+            return game;
+          })
+        );
+      }
+    } catch (e) {
+      console.error("Erreur lecture localStorage:", e);
+    }
+  }, []);
+
+  // Mettre à jour un jeu dans l'état local et persister dans le navigateur
   const handleUpdateGame = (gameId, updatedFields) => {
     setGames(prevGames =>
       prevGames.map(game =>
         game.id === gameId ? { ...game, ...updatedFields } : game
       )
     );
+
+    try {
+      const savedOverrides = JSON.parse(localStorage.getItem('geekshelf_game_overrides') || '{}');
+      savedOverrides[gameId] = { ...(savedOverrides[gameId] || {}), ...updatedFields };
+      localStorage.setItem('geekshelf_game_overrides', JSON.stringify(savedOverrides));
+    } catch (e) {
+      console.error("Erreur sauvegarde localStorage:", e);
+    }
   };
 
   // Traiter les mises à jour de synchronisation d'inventaire
@@ -69,6 +97,21 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
         return game;
       })
     );
+
+    try {
+      const savedOverrides = JSON.parse(localStorage.getItem('geekshelf_game_overrides') || '{}');
+      updates.forEach(u => {
+        savedOverrides[u.gameId] = { ...(savedOverrides[u.gameId] || {}), location: u.location };
+      });
+      gameIdsToClear.forEach(id => {
+        if (savedOverrides[id]) {
+          savedOverrides[id].location = null;
+        }
+      });
+      localStorage.setItem('geekshelf_game_overrides', JSON.stringify(savedOverrides));
+    } catch (e) {
+      console.error("Erreur sauvegarde localStorage:", e);
+    }
   };
 
   // Traiter les mises à jour après un scan photo de tablette
@@ -81,6 +124,16 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
         return game;
       })
     );
+
+    try {
+      const savedOverrides = JSON.parse(localStorage.getItem('geekshelf_game_overrides') || '{}');
+      gameIds.forEach(id => {
+        savedOverrides[id] = { ...(savedOverrides[id] || {}), location: targetLocation };
+      });
+      localStorage.setItem('geekshelf_game_overrides', JSON.stringify(savedOverrides));
+    } catch (e) {
+      console.error("Erreur sauvegarde localStorage:", e);
+    }
   };
 
   // Associer en lot un tag à plusieurs jeux
@@ -96,6 +149,20 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
         return game;
       })
     );
+
+    try {
+      const savedOverrides = JSON.parse(localStorage.getItem('geekshelf_game_overrides') || '{}');
+      gameIds.forEach(id => {
+        const current = savedOverrides[id]?.customTags || [];
+        if (!current.includes(tagName)) {
+          savedOverrides[id] = { ...(savedOverrides[id] || {}), customTags: [...current, tagName] };
+        }
+      });
+      localStorage.setItem('geekshelf_game_overrides', JSON.stringify(savedOverrides));
+    } catch (e) {
+      console.error("Erreur sauvegarde localStorage:", e);
+    }
+
     setSelectedCustomTag(tagName); // Filtrer automatiquement sur ce tag
   };
 
