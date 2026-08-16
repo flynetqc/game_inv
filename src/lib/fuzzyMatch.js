@@ -25,6 +25,9 @@ export function normalizeTitle(str) {
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase();
 
+  // Retirer les codes SKU / références produit alphanumériques en début (ex: "MBGTB001EN")
+  clean = clean.replace(/^[a-z0-9]{6,16}\b/g, ' ');
+
   // Équivalences Fr <-> En courantes dans les titres BGG
   clean = clean
     .replace(/le seigneur des anneaux/g, 'the lord of the rings')
@@ -36,6 +39,15 @@ export function normalizeTitle(str) {
     .replace(/terre et eau/g, 'earth water')
     .replace(/fantastiques fabriques/g, 'fantastic factories')
     .replace(/les cites perdues/g, 'lost cities');
+
+  // Retirer les termes génériques fréquents sur les fiches de code-barres
+  clean = clean
+    .replace(/\bboard\s*game\b/g, ' ')
+    .replace(/\bcard\s*game\b/g, ' ')
+    .replace(/\btabletop\s*game\b/g, ' ')
+    .replace(/\bjeu\s*de\s*societe\b/g, ' ')
+    .replace(/\bjeu\s*de\s*cartes\b/g, ' ')
+    .replace(/\bjeu\s*de\s*plateau\b/g, ' ');
 
   return clean
     // Remplacer les caractères de ponctuation par des espaces
@@ -80,11 +92,11 @@ export function levenshteinDistance(a, b) {
 }
 
 /**
- * Calcule la similarité des mots (Token Overlap / Jaccard similarity)
+ * Calcule la similarité de Jaccard entre les mots-clés de deux titres.
  */
-export function tokenSimilarity(a, b) {
-  const tokensA = new Set(a.split(' ').filter(w => w.length > 1));
-  const tokensB = new Set(b.split(' ').filter(w => w.length > 1));
+export function tokenSimilarity(strA, strB) {
+  const tokensA = new Set(strA.split(/\s+/).filter(t => t.length >= 2));
+  const tokensB = new Set(strB.split(/\s+/).filter(t => t.length >= 2));
 
   if (tokensA.size === 0 || tokensB.size === 0) return 0;
 
@@ -110,13 +122,17 @@ export function calculateTitleSimilarity(titleA, titleB) {
   if (normA === normB) return 1.0;
   if (normA.length === 0 || normB.length === 0) return 0;
 
-  // 2. Inclusion complète (l'un contient l'autre, ex: "ring circus" dans "3 ring circus" ou "mini express" dans "mini express map pack")
-  if (normA.includes(normB) || normB.includes(normA)) {
+  // 2. Vérification avec frontières de mots complètes (évite que "ten" matche "tenby")
+  const escapedA = normA.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const escapedB = normB.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const patternA = new RegExp(`\\b${escapedA}\\b`);
+  const patternB = new RegExp(`\\b${escapedB}\\b`);
+
+  if (patternA.test(normB) || patternB.test(normA)) {
     const minLen = Math.min(normA.length, normB.length);
     const maxLen = Math.max(normA.length, normB.length);
-    if (minLen >= 3) {
-      return Math.max(0.75, minLen / maxLen);
-    }
+    const ratio = minLen / maxLen;
+    return Math.max(0.85, 0.75 + (ratio * 0.25));
   }
 
   // 3. Score fondé sur Levenshtein

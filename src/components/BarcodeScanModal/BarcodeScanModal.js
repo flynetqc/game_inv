@@ -354,15 +354,36 @@ export default function BarcodeScanModal({ allGames = [], existingLocations = []
                 </div>
               </div>
 
-              <button
-                type="button"
-                className={styles.confirmBtn}
-                onClick={() => handleConfirmPlacement(matchedGame)}
-                disabled={saving || !targetLocation.trim()}
-                style={{ width: '100%', justifyContent: 'center' }}
-              >
-                {saving ? 'Enregistrement...' : `✅ Valider et ranger sur ${targetLocation || 'la tablette'}`}
-              </button>
+              <div style={{ display: 'flex', gap: '0.75rem', width: '100%' }}>
+                <button
+                  type="button"
+                  className={styles.confirmBtn}
+                  onClick={() => handleConfirmPlacement(matchedGame)}
+                  disabled={saving || !targetLocation.trim()}
+                  style={{ flex: 1, justifyContent: 'center' }}
+                >
+                  {saving ? 'Enregistrement...' : `✅ Ranger sur ${targetLocation || 'la tablette'}`}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setMatchedGame(null)}
+                  style={{
+                    background: '#f8fafc',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '10px',
+                    padding: '0.55rem 0.85rem',
+                    fontSize: '0.8rem',
+                    fontWeight: '700',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}
+                  title="Changer de jeu"
+                >
+                  🔄 Modifier
+                </button>
+              </div>
             </div>
           )}
 
