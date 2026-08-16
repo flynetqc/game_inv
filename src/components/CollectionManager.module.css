@@ -268,25 +268,26 @@
   box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);
 }
 
-.photoScanBtn {
-  background: #f0fdf4;
-  border: 1px solid #86efac;
-  color: #16a34a;
+.barcodeScanBtn {
+  background: #eff6ff;
+  border: 1.5px solid #93c5fd;
+  color: #2563eb;
   padding: 0.55rem 1.1rem;
   border-radius: 10px;
   font-weight: 700;
   font-size: 0.85rem;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
   display: flex;
   align-items: center;
   gap: 0.35rem;
 }
 
-.photoScanBtn:hover {
-  background: #16a34a;
+.barcodeScanBtn:hover {
+  background: #2563eb;
+  border-color: #2563eb;
   color: white;
-  box-shadow: 0 4px 14px rgba(22, 163, 74, 0.3);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);
 }
 
 .syncBtn {

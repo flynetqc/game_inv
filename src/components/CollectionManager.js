@@ -7,7 +7,7 @@ import ImportModal from './ImportModal/ImportModal';
 import TravelTagModal from './TravelTagModal/TravelTagModal';
 import InventorySyncModal from './InventorySyncModal/InventorySyncModal';
 import ShelfView from './ShelfView/ShelfView';
-import PhotoShelfModal from './PhotoShelfModal/PhotoShelfModal';
+import BarcodeScanModal from './BarcodeScanModal/BarcodeScanModal';
 import styles from './CollectionManager.module.css';
 
 // Supprime les accents, trémas, macrons et signes diacritiques (ex: Gùgōng -> gugong, Château -> chateau)
@@ -35,7 +35,7 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isTravelOpen, setIsTravelOpen] = useState(false);
   const [isSyncOpen, setIsSyncOpen] = useState(false);
-  const [isPhotoShelfOpen, setIsPhotoShelfOpen] = useState(false);
+  const [isBarcodeScanOpen, setIsBarcodeScanOpen] = useState(false);
   const [selectedGame, setSelectedGame] = useState(null);
   
   // Quick location edit states
@@ -114,12 +114,12 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
     }
   };
 
-  // Traiter les mises à jour après un scan photo de tablette
-  const handlePhotoScanSuccess = (gameIds, targetLocation) => {
+  // Traiter la mise à jour après un scan de code-barres
+  const handleBarcodeGamePlaced = (gameId, targetLocation, barcode) => {
     setGames(prevGames =>
       prevGames.map(game => {
-        if (gameIds.includes(game.id)) {
-          return { ...game, location: targetLocation };
+        if (game.id === gameId) {
+          return { ...game, location: targetLocation, barcode: barcode || game.barcode };
         }
         return game;
       })
@@ -127,9 +127,11 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
 
     try {
       const savedOverrides = JSON.parse(localStorage.getItem('geekshelf_game_overrides') || '{}');
-      gameIds.forEach(id => {
-        savedOverrides[id] = { ...(savedOverrides[id] || {}), location: targetLocation };
-      });
+      savedOverrides[gameId] = { 
+        ...(savedOverrides[gameId] || {}), 
+        location: targetLocation,
+        ...(barcode ? { barcode } : {})
+      };
       localStorage.setItem('geekshelf_game_overrides', JSON.stringify(savedOverrides));
     } catch (e) {
       console.error("Erreur sauvegarde localStorage:", e);
@@ -533,11 +535,11 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
                 </div>
 
                 <button 
-                  className={styles.photoScanBtn}
-                  onClick={() => setIsPhotoShelfOpen(true)}
-                  title="Reconnaître et ranger les jeux par photo de tablette"
+                  className={styles.barcodeScanBtn}
+                  onClick={() => setIsBarcodeScanOpen(true)}
+                  title="Scanner le code-barres au dos d'une boîte de jeu pour la ranger sur une tablette"
                 >
-                  📸 Scan Photo
+                  📷 Scan Code-Barres
                 </button>
 
                 <button 
@@ -631,13 +633,13 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
         />
       )}
 
-      {/* Modale de Scan Photo d'étagère / tablette */}
-      {isPhotoShelfOpen && (
-        <PhotoShelfModal
+      {/* Modale de Scanner de Code-Barres */}
+      {isBarcodeScanOpen && (
+        <BarcodeScanModal
           allGames={games}
           existingLocations={allExistingLocations}
-          onClose={() => setIsPhotoShelfOpen(false)}
-          onScanSuccess={handlePhotoScanSuccess}
+          onClose={() => setIsBarcodeScanOpen(false)}
+          onGamePlaced={handleBarcodeGamePlaced}
         />
       )}
 

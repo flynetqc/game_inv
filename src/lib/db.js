@@ -112,6 +112,13 @@ function getDbInstance() {
     // Déjà présent
   }
 
+  // Migration pour ajouter barcode si la table existe déjà sans cette colonne
+  try {
+    database.exec('ALTER TABLE games ADD COLUMN barcode TEXT;');
+  } catch (e) {
+    // Déjà présent
+  }
+
   global._sqliteDb = database;
   return database;
 }
@@ -252,6 +259,25 @@ export function getGameThemes(gameId) {
 export function updateGameLocation(id, location) {
   const stmt = db.prepare(`UPDATE games SET location = ? WHERE id = ?`);
   return stmt.run(location, id);
+}
+
+/**
+ * Associe ou met à jour le code-barres (UPC/EAN) d'un jeu
+ */
+export function updateGameBarcode(id, barcode) {
+  const stmt = db.prepare(`UPDATE games SET barcode = ? WHERE id = ?`);
+  return stmt.run(barcode ? barcode.trim() : null, id);
+}
+
+/**
+ * Recherche un jeu par son code-barres
+ */
+export function getGameByBarcode(barcode) {
+  if (!barcode) return null;
+  const stmt = db.prepare(`SELECT * FROM games WHERE barcode = ?`);
+  const row = stmt.get(barcode.trim());
+  if (!row) return null;
+  return getGameById(row.id);
 }
 
 /**
