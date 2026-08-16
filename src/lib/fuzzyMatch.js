@@ -38,6 +38,15 @@ export function normalizeTitle(str) {
     .replace(/duel pour la terre du milieu/g, 'duel for middle earth')
     .replace(/duel pour le/g, 'duel for')
     .replace(/terre du milieu/g, 'middle earth')
+    .replace(/recherche d'intelligence extraterrestre/g, 'search for extraterrestrial intelligence')
+    .replace(/recherche d'/g, 'search for ')
+    .replace(/recherche de/g, 'search for ')
+    .replace(/extraterrestre/g, 'extraterrestrial')
+    .replace(/les tribus du vent/g, 'tribes of the wind')
+    .replace(/tribus du vent/g, 'tribes of the wind')
+    .replace(/tribus/g, 'tribes')
+    .replace(/du vent/g, 'of the wind')
+    .replace(/catacombes/g, 'catacombs')
     .replace(/le roi est mort/g, 'the king is dead')
     .replace(/a la recherche de la planete x/g, 'the search for planet x')
     .replace(/gardiens de la galaxie/g, 'guardians of the galaxy')
@@ -130,6 +139,11 @@ export function calculateTitleSimilarity(titleA, titleB) {
   if (!normA || !normB || normA.length === 0 || normB.length === 0) return 0;
   if (normA === normB) return 1.0;
 
+  // Reconnaissance des titres avec préfixe principal identique (ex: "SETI", "Clank!", "Nippon")
+  const prefixA = normalizeTitle(titleA.split(/[:–—]/)[0]);
+  const prefixB = normalizeTitle(titleB.split(/[:–—]/)[0]);
+  const prefixMatch = prefixA && prefixB && prefixA === prefixB && prefixA.length >= 3;
+
   const minLen = Math.min(normA.length, normB.length);
   const maxLen = Math.max(normA.length, normB.length);
   const ratio = minLen / maxLen;
@@ -154,7 +168,11 @@ export function calculateTitleSimilarity(titleA, titleB) {
   const tokScore = tokenSimilarity(normA, normB);
 
   // Score combiné pondéré (donnant plus d'importance aux mots-clés distinctifs)
-  const combinedScore = (levScore * 0.35) + (tokScore * 0.65);
+  let combinedScore = (levScore * 0.35) + (tokScore * 0.65);
+  if (prefixMatch) {
+    combinedScore = Math.max(combinedScore, 0.70 + (combinedScore * 0.30));
+  }
+
   return Math.max(0, Math.min(1, combinedScore));
 }
 
