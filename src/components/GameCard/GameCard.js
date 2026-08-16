@@ -88,6 +88,16 @@ export default function GameCard({ game, viewMode = 'grid', onClick, onEditLocat
                 <span className={styles.listLocationText}>Ranger</span>
               </button>
             )}
+
+            {Array.isArray(game.customTags) && game.customTags.length > 0 && (
+              <div className={styles.listTagsContainer}>
+                {game.customTags.map((tag) => (
+                  <span key={tag} className={styles.tagPill}>
+                    🏷️ {tag}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -174,6 +184,16 @@ export default function GameCard({ game, viewMode = 'grid', onClick, onEditLocat
             </button>
           )}
         </div>
+
+        {Array.isArray(game.customTags) && game.customTags.length > 0 && (
+          <div className={styles.tagsContainer}>
+            {game.customTags.map((tag) => (
+              <span key={tag} className={styles.tagPill}>
+                🏷️ {tag}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

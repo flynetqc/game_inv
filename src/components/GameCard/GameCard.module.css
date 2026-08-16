@@ -213,6 +213,36 @@
   margin-left: 0.2rem;
 }
 
+.tagsContainer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.1rem;
+}
+
+.listTagsContainer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.35rem;
+  justify-content: flex-end;
+}
+
+.tagPill {
+  background: #fdf4ff;
+  color: #9333ea;
+  border: 1px solid #f0abfc;
+  padding: 0.18rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(147, 51, 234, 0.08);
+}
+
 /* Mode Liste Compact */
 .listCard {
   background: var(--surface-light);
