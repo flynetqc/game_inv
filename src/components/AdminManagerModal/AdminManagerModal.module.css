@@ -205,10 +205,23 @@
   gap: 0.65rem;
 }
 
-.itemCard {
+.itemContainer {
+  display: flex;
+  flex-direction: column;
   background: #ffffff;
   border: 1px solid var(--border-color);
   border-radius: 12px;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.itemContainerExpanded {
+  border-color: #f97316;
+  box-shadow: 0 4px 14px rgba(249, 115, 22, 0.1);
+}
+
+.itemCard {
+  background: #ffffff;
   padding: 0.85rem 1rem;
   display: flex;
   justify-content: space-between;
@@ -218,8 +231,7 @@
 }
 
 .itemCard:hover {
-  border-color: #cbd5e1;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  background: #f8fafc;
 }
 
 .itemLeft {
@@ -228,6 +240,23 @@
   gap: 0.75rem;
   flex: 1;
   min-width: 0;
+}
+
+.expandChevron {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--primary);
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
+  margin-left: auto;
+  transition: all 0.2s ease;
+}
+
+.itemCard:hover .expandChevron {
+  background: var(--primary);
+  color: white;
 }
 
 .itemPill {
@@ -250,6 +279,122 @@
   font-size: 0.82rem;
   color: var(--text-muted);
   font-weight: 600;
+}
+
+/* Tiroir de contenu déroulant */
+.expandedDrawer {
+  background: #f8fafc;
+  border-top: 1px solid #fed7aa;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  animation: modalEnter 0.2s ease-out;
+}
+
+.drawerHeader {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #7c2d12;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.drawerEmptyMsg {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 0.5rem 0;
+}
+
+.drawerGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.65rem;
+}
+
+.drawerGameCard {
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.5rem 0.65rem;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.drawerGameThumbWrapper {
+  width: 38px;
+  height: 38px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 2px;
+}
+
+.drawerGameThumb {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.drawerGameDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.drawerGameTitle {
+  font-weight: 800;
+  font-size: 0.84rem;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.drawerGameBadges {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.drawerBadge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.baseGameBadge {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.expansionBadge {
+  background: #f3e8ff;
+  color: #7e22ce;
+  border: 1px solid #e9d5ff;
+}
+
+.barcodeBadge {
+  background: #fefce8;
+  color: #854d0e;
+  border: 1px solid #fef08a;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 .actions {

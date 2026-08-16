@@ -20,6 +20,7 @@ export default function AdminManagerModal({
   const [searchQuery, setSearchQuery] = useState('');
   const [newLocationInput, setNewLocationInput] = useState('');
   const [newTagInput, setNewTagInput] = useState('');
+  const [expandedItem, setExpandedItem] = useState(null); // 'loc:C1' ou 'tag:Voyage'
 
   // États pour l'édition en cours
   const [editingItem, setEditingItem] = useState(null); // { type: 'location'|'tag', oldName: string }
@@ -341,72 +342,135 @@ export default function AdminManagerModal({
                 {filteredLocations.map((loc) => {
                   const isEditing = editingItem?.type === 'location' && editingItem?.oldName === loc;
                   const count = locationGameCounts[loc] || 0;
+                  const isExpanded = expandedItem === `loc:${loc}`;
+                  const locationGames = isExpanded ? games.filter(g => g.location === loc) : [];
 
                   return (
-                    <div key={loc} className={styles.itemCard}>
-                      {isEditing ? (
-                        <div className={styles.editRow}>
-                          <input
-                            type="text"
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            className={styles.editInput}
-                            autoFocus
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') handleSaveRenameLocation(loc);
-                              if (e.key === 'Escape') setEditingItem(null);
-                            }}
-                          />
-                          <button
-                            type="button"
-                            className={styles.saveBtn}
-                            onClick={() => handleSaveRenameLocation(loc)}
-                            disabled={loading}
-                          >
-                            💾 Valider
-                          </button>
-                          <button
-                            type="button"
-                            className={styles.cancelBtn}
-                            onClick={() => setEditingItem(null)}
-                          >
-                            Annuler
-                          </button>
-                        </div>
-                      ) : (
-                        <>
-                          <div className={styles.itemLeft}>
-                            <span className={styles.itemPill}>📍 {loc}</span>
-                            <span className={styles.itemMeta}>
-                              {count} jeu{count > 1 ? 'x' : ''} rangé{count > 1 ? 's' : ''}
-                            </span>
-                          </div>
-
-                          <div className={styles.actions}>
-                            <button
-                              type="button"
-                              className={styles.actionBtn}
-                              onClick={() => {
-                                setEditingItem({ type: 'location', oldName: loc });
-                                setEditValue(loc);
+                    <div key={loc} className={`${styles.itemContainer} ${isExpanded ? styles.itemContainerExpanded : ''}`}>
+                      <div className={styles.itemCard}>
+                        {isEditing ? (
+                          <div className={styles.editRow}>
+                            <input
+                              type="text"
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              className={styles.editInput}
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSaveRenameLocation(loc);
+                                if (e.key === 'Escape') setEditingItem(null);
                               }}
-                              disabled={loading}
-                              title="Renommer l'emplacement"
-                            >
-                              ✏️ Renommer
-                            </button>
-
+                            />
                             <button
                               type="button"
-                              className={`${styles.actionBtn} ${styles.deleteBtn}`}
-                              onClick={() => handleDeleteLocation(loc)}
+                              className={styles.saveBtn}
+                              onClick={() => handleSaveRenameLocation(loc)}
                               disabled={loading}
-                              title="Supprimer l'emplacement"
                             >
-                              🗑️ Supprimer
+                              💾 Valider
+                            </button>
+                            <button
+                              type="button"
+                              className={styles.cancelBtn}
+                              onClick={() => setEditingItem(null)}
+                            >
+                              Annuler
                             </button>
                           </div>
-                        </>
+                        ) : (
+                          <>
+                            <div 
+                              className={styles.itemLeft}
+                              onClick={() => setExpandedItem(isExpanded ? null : `loc:${loc}`)}
+                              style={{ cursor: 'pointer' }}
+                              title="Cliquer pour afficher/masquer le contenu"
+                            >
+                              <span className={styles.itemPill}>📍 {loc}</span>
+                              <span className={styles.itemMeta}>
+                                {count} jeu{count > 1 ? 'x' : ''} rangé{count > 1 ? 's' : ''}
+                              </span>
+                              {count > 0 && (
+                                <span className={styles.expandChevron}>
+                                  {isExpanded ? '▲ Masquer' : '▼ Voir les jeux'}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className={styles.actions}>
+                              <button
+                                type="button"
+                                className={styles.actionBtn}
+                                onClick={() => {
+                                  setEditingItem({ type: 'location', oldName: loc });
+                                  setEditValue(loc);
+                                }}
+                                disabled={loading}
+                                title="Renommer l'emplacement"
+                              >
+                                ✏️ Renommer
+                              </button>
+
+                              <button
+                                type="button"
+                                className={`${styles.actionBtn} ${styles.deleteBtn}`}
+                                onClick={() => handleDeleteLocation(loc)}
+                                disabled={loading}
+                                title="Supprimer l'emplacement"
+                              >
+                                🗑️ Supprimer
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Tiroir déroulant affichant le contenu de l'emplacement */}
+                      {isExpanded && (
+                        <div className={styles.expandedDrawer}>
+                          <div className={styles.drawerHeader}>
+                            <span>📚 Jeux et boîtes rangés sur la tablette <strong>{loc}</strong> ({locationGames.length}) :</span>
+                          </div>
+                          {locationGames.length === 0 ? (
+                            <div className={styles.drawerEmptyMsg}>Aucun jeu n'est actuellement assigné à cet emplacement.</div>
+                          ) : (
+                            <div className={styles.drawerGrid}>
+                              {locationGames.map((game) => (
+                                <div key={game.id} className={styles.drawerGameCard}>
+                                  <div className={styles.drawerGameThumbWrapper}>
+                                    {game.thumbnail_url || game.image_url ? (
+                                      <img
+                                        src={game.thumbnail_url || game.image_url}
+                                        alt={game.title}
+                                        className={styles.drawerGameThumb}
+                                        referrerPolicy="no-referrer"
+                                      />
+                                    ) : (
+                                      <span>🎲</span>
+                                    )}
+                                  </div>
+                                  <div className={styles.drawerGameDetails}>
+                                    <span className={styles.drawerGameTitle} title={game.title}>
+                                      {game.title}
+                                    </span>
+                                    <div className={styles.drawerGameBadges}>
+                                      {game.year_published && (
+                                        <span className={styles.drawerBadge}>📅 {game.year_published}</span>
+                                      )}
+                                      {game.item_type === 'expansion' ? (
+                                        <span className={`${styles.drawerBadge} ${styles.expansionBadge}`}>Extension</span>
+                                      ) : (
+                                        <span className={`${styles.drawerBadge} ${styles.baseGameBadge}`}>Jeu de base</span>
+                                      )}
+                                      {game.barcode && (
+                                        <span className={`${styles.drawerBadge} ${styles.barcodeBadge}`}>📷 {game.barcode}</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   );
@@ -457,72 +521,133 @@ export default function AdminManagerModal({
                 {filteredTags.map((tag) => {
                   const isEditing = editingItem?.type === 'tag' && editingItem?.oldName === tag;
                   const count = tagGameCounts[tag] || 0;
+                  const isExpanded = expandedItem === `tag:${tag}`;
+                  const tagGames = isExpanded ? games.filter(g => Array.isArray(g.customTags) && g.customTags.includes(tag)) : [];
 
                   return (
-                    <div key={tag} className={styles.itemCard}>
-                      {isEditing ? (
-                        <div className={styles.editRow}>
-                          <input
-                            type="text"
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            className={styles.editInput}
-                            autoFocus
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') handleSaveRenameTag(tag);
-                              if (e.key === 'Escape') setEditingItem(null);
-                            }}
-                          />
-                          <button
-                            type="button"
-                            className={styles.saveBtn}
-                            onClick={() => handleSaveRenameTag(tag)}
-                            disabled={loading}
-                          >
-                            💾 Valider
-                          </button>
-                          <button
-                            type="button"
-                            className={styles.cancelBtn}
-                            onClick={() => setEditingItem(null)}
-                          >
-                            Annuler
-                          </button>
-                        </div>
-                      ) : (
-                        <>
-                          <div className={styles.itemLeft}>
-                            <span className={`${styles.itemPill} ${styles.tagPill}`}>🏷️ {tag}</span>
-                            <span className={styles.itemMeta}>
-                              {count} jeu{count > 1 ? 'x' : ''} associé{count > 1 ? 's' : ''}
-                            </span>
-                          </div>
-
-                          <div className={styles.actions}>
-                            <button
-                              type="button"
-                              className={styles.actionBtn}
-                              onClick={() => {
-                                setEditingItem({ type: 'tag', oldName: tag });
-                                setEditValue(tag);
+                    <div key={tag} className={`${styles.itemContainer} ${isExpanded ? styles.itemContainerExpanded : ''}`}>
+                      <div className={styles.itemCard}>
+                        {isEditing ? (
+                          <div className={styles.editRow}>
+                            <input
+                              type="text"
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              className={styles.editInput}
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSaveRenameTag(tag);
+                                if (e.key === 'Escape') setEditingItem(null);
                               }}
-                              disabled={loading}
-                              title="Renommer le mot-clé"
-                            >
-                              ✏️ Renommer
-                            </button>
-
+                            />
                             <button
                               type="button"
-                              className={`${styles.actionBtn} ${styles.deleteBtn}`}
-                              onClick={() => handleDeleteTag(tag)}
+                              className={styles.saveBtn}
+                              onClick={() => handleSaveRenameTag(tag)}
                               disabled={loading}
-                              title="Supprimer le mot-clé"
                             >
-                              🗑️ Supprimer
+                              💾 Valider
+                            </button>
+                            <button
+                              type="button"
+                              className={styles.cancelBtn}
+                              onClick={() => setEditingItem(null)}
+                            >
+                              Annuler
                             </button>
                           </div>
-                        </>
+                        ) : (
+                          <>
+                            <div 
+                              className={styles.itemLeft}
+                              onClick={() => setExpandedItem(isExpanded ? null : `tag:${tag}`)}
+                              style={{ cursor: 'pointer' }}
+                              title="Cliquer pour afficher/masquer les jeux associés"
+                            >
+                              <span className={`${styles.itemPill} ${styles.tagPill}`}>🏷️ {tag}</span>
+                              <span className={styles.itemMeta}>
+                                {count} jeu{count > 1 ? 'x' : ''} associé{count > 1 ? 's' : ''}
+                              </span>
+                              {count > 0 && (
+                                <span className={styles.expandChevron}>
+                                  {isExpanded ? '▲ Masquer' : '▼ Voir les jeux'}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className={styles.actions}>
+                              <button
+                                type="button"
+                                className={styles.actionBtn}
+                                onClick={() => {
+                                  setEditingItem({ type: 'tag', oldName: tag });
+                                  setEditValue(tag);
+                                }}
+                                disabled={loading}
+                                title="Renommer le mot-clé"
+                              >
+                                ✏️ Renommer
+                              </button>
+
+                              <button
+                                type="button"
+                                className={`${styles.actionBtn} ${styles.deleteBtn}`}
+                                onClick={() => handleDeleteTag(tag)}
+                                disabled={loading}
+                                title="Supprimer le mot-clé"
+                              >
+                                🗑️ Supprimer
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Tiroir déroulant affichant les jeux tagués */}
+                      {isExpanded && (
+                        <div className={styles.expandedDrawer}>
+                          <div className={styles.drawerHeader}>
+                            <span>🏷️ Jeux associés au mot-clé <strong>{tag}</strong> ({tagGames.length}) :</span>
+                          </div>
+                          {tagGames.length === 0 ? (
+                            <div className={styles.drawerEmptyMsg}>Aucun jeu n'a ce mot-clé pour le moment.</div>
+                          ) : (
+                            <div className={styles.drawerGrid}>
+                              {tagGames.map((game) => (
+                                <div key={game.id} className={styles.drawerGameCard}>
+                                  <div className={styles.drawerGameThumbWrapper}>
+                                    {game.thumbnail_url || game.image_url ? (
+                                      <img
+                                        src={game.thumbnail_url || game.image_url}
+                                        alt={game.title}
+                                        className={styles.drawerGameThumb}
+                                        referrerPolicy="no-referrer"
+                                      />
+                                    ) : (
+                                      <span>🎲</span>
+                                    )}
+                                  </div>
+                                  <div className={styles.drawerGameDetails}>
+                                    <span className={styles.drawerGameTitle} title={game.title}>
+                                      {game.title}
+                                    </span>
+                                    <div className={styles.drawerGameBadges}>
+                                      {game.year_published && (
+                                        <span className={styles.drawerBadge}>📅 {game.year_published}</span>
+                                      )}
+                                      {game.location && (
+                                        <span className={styles.itemMetaLocation}>📍 {game.location}</span>
+                                      )}
+                                      {game.barcode && (
+                                        <span className={`${styles.drawerBadge} ${styles.barcodeBadge}`}>📷 {game.barcode}</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   );

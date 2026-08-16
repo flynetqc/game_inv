@@ -20,13 +20,13 @@ export default function ShelfView({ games = [], onSelectGame }) {
   const [hoveredGame, setHoveredGame] = useState(null);
   const [popupPos, setPopupPos] = useState(null);
 
-  // Filtrer uniquement les JEUX DE BASE (standalone) qui ont un EMPLACEMENT de rangement
-  const placedBaseGames = games.filter(
-    g => g.item_type === 'standalone' && g.location && g.location.trim() !== ''
+  // Filtrer tous les jeux et extensions qui ont un EMPLACEMENT de rangement
+  const placedGames = games.filter(
+    g => g.location && g.location.trim() !== ''
   );
 
   // Grouper les jeux par tablette / localisation (ex: "A1", "A2", "B1"...)
-  const shelfGroups = placedBaseGames.reduce((acc, game) => {
+  const shelfGroups = placedGames.reduce((acc, game) => {
     const loc = game.location.trim();
     if (!acc[loc]) {
       acc[loc] = [];
@@ -71,13 +71,13 @@ export default function ShelfView({ games = [], onSelectGame }) {
     setPopupPos(null);
   };
 
-  if (placedBaseGames.length === 0) {
+  if (placedGames.length === 0) {
     return (
       <div className={styles.emptyState}>
         <div className={styles.emptyIcon}>📚</div>
-        <h3>Aucun jeu de base rangé sur les tablettes</h3>
+        <h3>Aucun jeu rangé sur les tablettes</h3>
         <p>
-          Pour voir apparaître vos jeux sur les étagères physiques de la bibliothèque, attribuez un emplacement de rangement (ex: <em>A1</em>, <em>Étagère B2</em>) à vos <strong>Jeux de base</strong> dans leur fiche ou via le bouton <strong>📋 Synchro Sheet</strong>.
+          Pour voir apparaître vos jeux sur les étagères physiques de la bibliothèque, attribuez un emplacement de rangement (ex: <em>A1</em>, <em>C1</em>) dans leur fiche ou via le bouton <strong>📋 Synchro Sheet</strong>.
         </p>
       </div>
     );
@@ -98,7 +98,7 @@ export default function ShelfView({ games = [], onSelectGame }) {
           <span>📚 Mode Bibliothèque Physique</span>
         </div>
         <span className={styles.summaryCount}>
-          {placedBaseGames.length} jeu{placedBaseGames.length > 1 ? 'x' : ''} de base rangé{placedBaseGames.length > 1 ? 's' : ''} sur {sortedShelfLocations.length} tablette{sortedShelfLocations.length > 1 ? 's' : ''}
+          {placedGames.length} boîte{placedGames.length > 1 ? 's' : ''} rangée{placedGames.length > 1 ? 's' : ''} sur {sortedShelfLocations.length} tablette{sortedShelfLocations.length > 1 ? 's' : ''}
         </span>
       </div>
 
