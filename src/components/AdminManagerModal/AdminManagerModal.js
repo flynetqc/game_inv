@@ -14,8 +14,9 @@ export default function AdminManagerModal({
   onTagRenamed,
   onTagDeleted,
   onTagCreated,
+  onBarcodeRemoved,
 }) {
-  const [activeTab, setActiveTab] = useState('locations'); // 'locations' ou 'tags'
+  const [activeTab, setActiveTab] = useState('locations'); // 'locations', 'tags' ou 'barcodes'
   const [searchQuery, setSearchQuery] = useState('');
   const [newLocationInput, setNewLocationInput] = useState('');
   const [newTagInput, setNewTagInput] = useState('');
@@ -58,6 +59,11 @@ export default function AdminManagerModal({
     new Set([...allCustomTags, ...Object.keys(tagGameCounts)])
   ).sort((a, b) => a.localeCompare(b));
 
+  // Liste des jeux avec code-barres
+  const gamesWithBarcodes = games
+    .filter(g => g.barcode && String(g.barcode).trim() !== '')
+    .sort((a, b) => a.title.localeCompare(b.title));
+
   // Filtrage par recherche
   const filteredLocations = allLocationsList.filter(l =>
     l.toLowerCase().includes(searchQuery.toLowerCase().trim())
@@ -65,6 +71,11 @@ export default function AdminManagerModal({
 
   const filteredTags = allTagsList.filter(t =>
     t.toLowerCase().includes(searchQuery.toLowerCase().trim())
+  );
+
+  const filteredBarcodes = gamesWithBarcodes.filter(g =>
+    g.title.toLowerCase().includes(searchQuery.toLowerCase().trim()) ||
+    String(g.barcode).includes(searchQuery.trim())
   );
 
   // --- ACTIONS EMPLACEMENTS ---
@@ -219,30 +230,25 @@ export default function AdminManagerModal({
   };
 
   const handleDeleteTag = async (tagName) => {
-    const count = tagGameCounts[tagName] || 0;
-    const confirmMsg = count > 0
-      ? `Supprimer définitivement le mot-clé "${tagName}" ? Il sera retiré de ${count} jeu(x).`
-      : `Supprimer le mot-clé "${tagName}" ?`;
-
-    if (!window.confirm(confirmMsg)) return;
-
-    setLoading(true);
-    setFeedback(null);
-
-    try {
+    if (confirm(`Supprimer le mot-clé "${tagName}" de tous les jeux ?`)) {
       if (onTagDeleted) {
-        await onTagDeleted(tagName);
+        onTagDeleted(tagName);
       }
-
       fetch(`/api/tags?tagName=${encodeURIComponent(tagName)}`, {
         method: 'DELETE'
       }).catch(e => console.warn(e));
 
-      setFeedback({ type: 'success', message: `Le mot-clé "${tagName}" a été supprimé.` });
-    } catch (err) {
-      setFeedback({ type: 'error', message: err.message });
-    } finally {
-      setLoading(false);
+      setFeedback({ type: 'success', message: `Mot-clé "${tagName}" supprimé avec succès.` });
+    }
+  };
+
+  // --- ACTIONS CODES-BARRES ---
+  const handleRemoveBarcode = (game) => {
+    if (confirm(`Dissocier et supprimer le code-barres (${game.barcode}) du jeu "${game.title}" ?`)) {
+      if (onBarcodeRemoved) {
+        onBarcodeRemoved(game.id);
+      }
+      setFeedback({ type: 'success', message: `Code-barres dissocié du jeu "${game.title}".` });
     }
   };
 
@@ -279,6 +285,14 @@ export default function AdminManagerModal({
           >
             <span>🏷️</span> Mots-Clés (Tags)
             <span className={styles.tabBadge}>{allTagsList.length}</span>
+          </button>
+
+          <button
+            className={`${styles.tabBtn} ${activeTab === 'barcodes' ? styles.activeTab : ''}`}
+            onClick={() => { setActiveTab('barcodes'); setFeedback(null); setEditingItem(null); }}
+          >
+            <span>📷</span> Codes-Barres (UPC)
+            <span className={styles.tabBadge}>{gamesWithBarcodes.length}</span>
           </button>
         </div>
 
@@ -517,6 +531,85 @@ export default function AdminManagerModal({
                 {filteredTags.length === 0 && (
                   <div className={styles.emptyMsg}>
                     Aucun mot-clé trouvé.
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* SECTION 3 : CODES-BARRES (UPC) */}
+          {activeTab === 'barcodes' && (
+            <>
+              <div className={styles.barcodeInfoBanner}>
+                <span>ℹ️</span>
+                <span>
+                  Liste de toutes les boîtes associées à un code-barres scanné. Vous pouvez supprimer ou dissocier un code-barres erroné en un clic.
+                </span>
+              </div>
+
+              {/* Barre de filtre recherche */}
+              {gamesWithBarcodes.length > 3 && (
+                <div className={styles.searchBar}>
+                  <span className={styles.searchIcon}>🔍</span>
+                  <input
+                    type="text"
+                    placeholder="Rechercher par titre de jeu ou code UPC..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className={styles.searchInput}
+                  />
+                </div>
+              )}
+
+              {/* Liste des jeux avec codes-barres */}
+              <div className={styles.itemList}>
+                {filteredBarcodes.map((game) => (
+                  <div key={game.id} className={styles.itemCard}>
+                    <div className={styles.barcodeItemLeft}>
+                      <div className={styles.barcodeThumbWrapper}>
+                        {game.thumbnail_url || game.image_url ? (
+                          <img
+                            src={game.thumbnail_url || game.image_url}
+                            alt={game.title}
+                            className={styles.barcodeThumb}
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <span style={{ fontSize: '1.2rem' }}>🎲</span>
+                        )}
+                      </div>
+                      <div className={styles.barcodeGameInfo}>
+                        <span className={styles.barcodeGameTitle}>{game.title}</span>
+                        <div className={styles.barcodeMetaBadges}>
+                          <span className={styles.barcodeCodePill}>
+                            📷 <code>{game.barcode}</code>
+                          </span>
+                          {game.location && (
+                            <span className={styles.itemMetaLocation}>📍 {game.location}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className={styles.actions}>
+                      <button
+                        type="button"
+                        className={`${styles.actionBtn} ${styles.deleteBtn}`}
+                        onClick={() => handleRemoveBarcode(game)}
+                        disabled={loading}
+                        title="Supprimer ce code-barres"
+                      >
+                        🗑️ Dissocier UPC
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {filteredBarcodes.length === 0 && (
+                  <div className={styles.emptyMsg}>
+                    {gamesWithBarcodes.length === 0
+                      ? "Aucun jeu n'a de code-barres enregistré pour l'instant."
+                      : "Aucun jeu avec code-barres ne correspond à votre recherche."}
                   </div>
                 )}
               </div>

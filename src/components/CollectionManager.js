@@ -678,6 +678,41 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
     }
   };
 
+  const handleBarcodeRemoved = async (gameId) => {
+    setGames(prevGames =>
+      prevGames.map(game =>
+        game.id === gameId ? { ...game, barcode: null } : game
+      )
+    );
+
+    try {
+      const savedOverrides = JSON.parse(localStorage.getItem('geekshelf_game_overrides') || '{}');
+      if (savedOverrides && typeof savedOverrides === 'object') {
+        if (savedOverrides[gameId]) {
+          savedOverrides[gameId].barcode = null;
+          localStorage.setItem('geekshelf_game_overrides', JSON.stringify(savedOverrides));
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
+    try {
+      await supabase
+        .from('game_overrides')
+        .update({ barcode: null, updated_at: new Date().toISOString() })
+        .eq('game_id', gameId);
+
+      fetch('/api/games/update', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: gameId, barcode: null })
+      }).catch(e => console.warn(e));
+    } catch (err) {
+      console.warn("Erreur suppression barcode Supabase:", err);
+    }
+  };
+
   // Réinitialiser tous les filtres
   const handleResetFilters = () => {
     setSearchQuery('');
@@ -1134,6 +1169,7 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
           onTagRenamed={handleAdminTagRenamed}
           onTagDeleted={handleAdminTagDeleted}
           onTagCreated={handleAdminTagCreated}
+          onBarcodeRemoved={handleBarcodeRemoved}
         />
       )}
 

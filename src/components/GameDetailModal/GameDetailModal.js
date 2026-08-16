@@ -78,6 +78,22 @@ export default function GameDetailModal({ game, allCustomTags = [], onClose, onU
     }
   };
 
+  const handleRemoveBarcode = async () => {
+    if (confirm(`Dissocier et supprimer le code-barres (${game.barcode}) de ce jeu ?`)) {
+      try {
+        fetch('/api/games/update', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: game.id, barcode: null })
+        }).catch(e => console.warn(e));
+
+        onUpdateGame(game.id, { barcode: null });
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  };
+
   const handleSave = async (e) => {
     e.preventDefault();
     setSaving(true);
@@ -195,6 +211,27 @@ export default function GameDetailModal({ game, allCustomTags = [], onClose, onU
                 </button>
               </div>
             </form>
+
+            {/* Section Code-barres (UPC) */}
+            {game.barcode && (
+              <div className={styles.barcodeBox}>
+                <div className={styles.barcodeHeader}>
+                  <span>📷</span>
+                  <span className={styles.barcodeLabel}>Code-barres (UPC/EAN)</span>
+                </div>
+                <div className={styles.barcodeRow}>
+                  <code className={styles.barcodeCode}>{game.barcode}</code>
+                  <button
+                    type="button"
+                    onClick={handleRemoveBarcode}
+                    className={styles.barcodeDeleteBtn}
+                    title="Supprimer ce code-barres"
+                  >
+                    🗑️ Dissocier
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Section Détails & Métadonnées */}
