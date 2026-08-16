@@ -4,12 +4,30 @@ import fs from 'fs';
 
 let db;
 
+function findSourceDbPath() {
+  const candidatePaths = [
+    path.join(process.cwd(), 'boardgames.db'),
+    path.join(process.cwd(), '.next', 'server', 'boardgames.db'),
+    path.join(__dirname, '..', '..', '..', 'boardgames.db'),
+    path.join(__dirname, '..', '..', 'boardgames.db'),
+    path.join(__dirname, '..', 'boardgames.db'),
+    path.join(__dirname, 'boardgames.db'),
+  ];
+
+  for (const p of candidatePaths) {
+    try {
+      if (fs.existsSync(p)) return p;
+    } catch (e) {}
+  }
+  return path.join(process.cwd(), 'boardgames.db');
+}
+
 function getDbInstance() {
   if (global._sqliteDb) {
     return global._sqliteDb;
   }
 
-  let dbPath = path.join(process.cwd(), 'boardgames.db');
+  let dbPath = findSourceDbPath();
 
   // En environnement Vercel / AWS Lambda, le dossier source (/var/task) est en lecture seule.
   // On copie la base SQLite vers /tmp (répertoire inscriptible) si elle n'existe pas encore dans /tmp.
