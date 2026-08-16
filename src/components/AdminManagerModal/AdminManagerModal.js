@@ -70,19 +70,30 @@ export default function AdminManagerModal({
   // --- ACTIONS EMPLACEMENTS ---
   const handleAddLocation = (e) => {
     e.preventDefault();
-    const loc = newLocationInput.trim();
-    if (!loc) return;
+    const raw = newLocationInput.trim();
+    if (!raw) return;
 
-    if (allLocationsList.includes(loc)) {
-      setFeedback({ type: 'error', message: `L'emplacement "${loc}" existe déjà.` });
-      return;
-    }
+    const items = raw.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
+    if (items.length === 0) return;
 
-    if (onLocationCreated) {
-      onLocationCreated(loc);
-    }
+    let addedCount = 0;
+    items.forEach(loc => {
+      if (!allLocationsList.includes(loc)) {
+        if (onLocationCreated) {
+          onLocationCreated(loc);
+        }
+        addedCount++;
+      }
+    });
+
     setNewLocationInput('');
-    setFeedback({ type: 'success', message: `Emplacement "${loc}" ajouté avec succès.` });
+    if (addedCount === 1) {
+      setFeedback({ type: 'success', message: `Emplacement "${items[0]}" ajouté avec succès.` });
+    } else if (addedCount > 1) {
+      setFeedback({ type: 'success', message: `${addedCount} emplacements (${items.join(', ')}) ajoutés avec succès.` });
+    } else {
+      setFeedback({ type: 'error', message: `Ces emplacements existent déjà.` });
+    }
   };
 
   const handleSaveRenameLocation = async (oldName) => {
@@ -143,34 +154,37 @@ export default function AdminManagerModal({
     }
   };
 
-  // --- ACTIONS TAGS ---
-  const handleAddTag = async (e) => {
+  // --- ACTIONS MOTS-CLÉS ---
+  const handleAddTag = (e) => {
     e.preventDefault();
-    const tag = newTagInput.trim();
-    if (!tag) return;
+    const raw = newTagInput.trim();
+    if (!raw) return;
 
-    setLoading(true);
-    setFeedback(null);
+    const items = raw.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
+    if (items.length === 0) return;
 
-    try {
-      const res = await fetch('/api/tags', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tagName: tag })
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erreur lors de la création du mot-clé.");
-
-      if (onTagCreated) {
-        onTagCreated(tag);
+    let addedCount = 0;
+    items.forEach(tag => {
+      if (!allTagsList.includes(tag)) {
+        if (onTagCreated) {
+          onTagCreated(tag);
+        }
+        fetch('/api/tags', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tagName: tag })
+        }).catch(err => console.warn(err));
+        addedCount++;
       }
-      setNewTagInput('');
-      setFeedback({ type: 'success', message: `Mot-clé "${tag}" créé avec succès.` });
-    } catch (err) {
-      setFeedback({ type: 'error', message: err.message });
-    } finally {
-      setLoading(false);
+    });
+
+    setNewTagInput('');
+    if (addedCount === 1) {
+      setFeedback({ type: 'success', message: `Mot-clé "${items[0]}" ajouté avec succès.` });
+    } else if (addedCount > 1) {
+      setFeedback({ type: 'success', message: `${addedCount} mots-clés ajoutés avec succès.` });
+    } else {
+      setFeedback({ type: 'error', message: `Ces mots-clés existent déjà.` });
     }
   };
 

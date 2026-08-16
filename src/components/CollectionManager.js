@@ -357,12 +357,13 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
 
   // Actions d'administration globale (synchronisées avec Supabase Cloud)
   const handleAdminLocationCreated = async (newLoc) => {
-    const trimmed = newLoc.trim();
-    if (!trimmed) return;
+    if (!newLoc) return;
+    const items = newLoc.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
+    if (items.length === 0) return;
 
     let updatedList = [];
     setCustomLocations(prev => {
-      updatedList = Array.from(new Set([...prev, trimmed]));
+      updatedList = Array.from(new Set([...prev, ...items]));
       try {
         localStorage.setItem('geekshelf_custom_locations', JSON.stringify(updatedList));
       } catch (e) {}
@@ -384,7 +385,7 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
     const affectedGames = games.filter(g => g.location === oldName);
 
     setCustomLocations(prev => {
-      const updated = prev.map(l => l === oldName ? newName : l);
+      const updated = Array.from(new Set(prev.map(l => l === oldName ? newName : l)));
       try {
         localStorage.setItem('geekshelf_custom_locations', JSON.stringify(updated));
       } catch (e) {}
@@ -416,6 +417,12 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
 
     // Synchroniser vers Supabase Cloud
     try {
+      // Mettre à jour par query SQL
+      await supabase
+        .from('game_overrides')
+        .update({ location: newName, updated_at: new Date().toISOString() })
+        .eq('location', oldName);
+
       if (affectedGames.length > 0) {
         const batch = affectedGames.map(g => ({
           game_id: g.id,
@@ -435,7 +442,7 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
     const affectedGames = games.filter(g => g.location === locationName);
 
     setCustomLocations(prev => {
-      const updated = prev.filter(l => l !== locationName);
+      const updated = Array.from(new Set(prev.filter(l => l !== locationName)));
       try {
         localStorage.setItem('geekshelf_custom_locations', JSON.stringify(updated));
       } catch (e) {}
@@ -467,6 +474,11 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
 
     // Synchroniser la suppression vers Supabase Cloud
     try {
+      await supabase
+        .from('game_overrides')
+        .update({ location: null, updated_at: new Date().toISOString() })
+        .eq('location', locationName);
+
       if (affectedGames.length > 0) {
         const batch = affectedGames.map(g => ({
           game_id: g.id,
