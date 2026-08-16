@@ -27,7 +27,13 @@ function getDbInstance() {
     dbPath = tmpDbPath;
   }
 
-  const database = new DatabaseSync(dbPath);
+  let database;
+  try {
+    database = new DatabaseSync(dbPath);
+  } catch (err) {
+    console.error("Erreur ouverture DB path, essai mémoire:", err);
+    database = new DatabaseSync(':memory:');
+  }
 
   // Configurer immédiatement le timeout d'attente pour éviter les verrous concurrents (multi-workers)
   try {
