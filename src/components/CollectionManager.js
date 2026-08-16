@@ -40,6 +40,7 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [selectedGame, setSelectedGame] = useState(null);
+  const [customLocations, setCustomLocations] = useState([]);
   
   const menuRef = useRef(null);
   
@@ -53,6 +54,11 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
   useEffect(() => {
     // 1. Chargement instantané depuis le stockage local du navigateur
     try {
+      const savedCustomLocs = localStorage.getItem('geekshelf_custom_locations');
+      if (savedCustomLocs) {
+        setCustomLocations(JSON.parse(savedCustomLocs));
+      }
+
       const savedOverrides = localStorage.getItem('geekshelf_game_overrides');
       if (savedOverrides) {
         const overrides = JSON.parse(savedOverrides);
@@ -92,7 +98,16 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
         // b. Récupérer l'état complet depuis Supabase Cloud
         const { data, error } = await supabase.from('game_overrides').select('*');
         if (!error && data && data.length > 0) {
-          const cloudMap = new Map(data.map(item => [item.game_id, item]));
+          const metaRow = data.find(item => item.game_id === -1);
+          if (metaRow && Array.isArray(metaRow.custom_tags)) {
+            setCustomLocations(prev => {
+              const merged = Array.from(new Set([...prev, ...metaRow.custom_tags]));
+              localStorage.setItem('geekshelf_custom_locations', JSON.stringify(merged));
+              return merged;
+            });
+          }
+
+          const cloudMap = new Map(data.filter(item => item.game_id > 0).map(item => [item.game_id, item]));
           
           setGames(prevGames =>
             prevGames.map(game => {
@@ -111,7 +126,7 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
 
           // Mettre à jour le cache local avec le cloud
           const updatedLocal = {};
-          data.forEach(item => {
+          data.filter(item => item.game_id > 0).forEach(item => {
             updatedLocal[item.game_id] = {
               location: item.location,
               barcode: item.barcode,
@@ -132,20 +147,25 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
       .channel('realtime_game_overrides')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'game_overrides' }, (payload) => {
         const row = payload.new;
-        if (row && row.game_id) {
-          setGames(prevGames =>
-            prevGames.map(game => {
-              if (game.id === row.game_id) {
-                return {
-                  ...game,
-                  location: row.location !== undefined ? row.location : game.location,
-                  barcode: row.barcode !== undefined ? row.barcode : game.barcode,
-                  customTags: row.custom_tags || game.customTags
-                };
-              }
-              return game;
-            })
-          );
+        if (row) {
+          if (row.game_id === -1 && Array.isArray(row.custom_tags)) {
+            setCustomLocations(row.custom_tags);
+            localStorage.setItem('geekshelf_custom_locations', JSON.stringify(row.custom_tags));
+          } else if (row.game_id > 0) {
+            setGames(prevGames =>
+              prevGames.map(game => {
+                if (game.id === row.game_id) {
+                  return {
+                    ...game,
+                    location: row.location !== undefined ? row.location : game.location,
+                    barcode: row.barcode !== undefined ? row.barcode : game.barcode,
+                    customTags: row.custom_tags || game.customTags
+                  };
+                }
+                return game;
+              })
+            );
+          }
         }
       })
       .subscribe();
@@ -336,8 +356,45 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
   };
 
   // Actions d'administration globale (synchronisées avec Supabase Cloud)
+  const handleAdminLocationCreated = async (newLoc) => {
+    const trimmed = newLoc.trim();
+    if (!trimmed) return;
+
+    let updatedList = [];
+    setCustomLocations(prev => {
+      updatedList = Array.from(new Set([...prev, trimmed]));
+      try {
+        localStorage.setItem('geekshelf_custom_locations', JSON.stringify(updatedList));
+      } catch (e) {}
+      return updatedList;
+    });
+
+    try {
+      await supabase.from('game_overrides').upsert({
+        game_id: -1,
+        custom_tags: updatedList,
+        updated_at: new Date().toISOString()
+      });
+    } catch (err) {
+      console.warn("Erreur sauvegarde location créée:", err);
+    }
+  };
+
   const handleAdminLocationRenamed = async (oldName, newName) => {
     const affectedGames = games.filter(g => g.location === oldName);
+
+    setCustomLocations(prev => {
+      const updated = prev.map(l => l === oldName ? newName : l);
+      try {
+        localStorage.setItem('geekshelf_custom_locations', JSON.stringify(updated));
+      } catch (e) {}
+      supabase.from('game_overrides').upsert({
+        game_id: -1,
+        custom_tags: updated,
+        updated_at: new Date().toISOString()
+      }).catch(e => console.warn(e));
+      return updated;
+    });
 
     setGames(prevGames =>
       prevGames.map(game =>
@@ -376,6 +433,19 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
 
   const handleAdminLocationDeleted = async (locationName) => {
     const affectedGames = games.filter(g => g.location === locationName);
+
+    setCustomLocations(prev => {
+      const updated = prev.filter(l => l !== locationName);
+      try {
+        localStorage.setItem('geekshelf_custom_locations', JSON.stringify(updated));
+      } catch (e) {}
+      supabase.from('game_overrides').upsert({
+        game_id: -1,
+        custom_tags: updated,
+        updated_at: new Date().toISOString()
+      }).catch(e => console.warn(e));
+      return updated;
+    });
 
     setGames(prevGames =>
       prevGames.map(game =>
@@ -590,7 +660,10 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
 
   // Extraire la liste de tous les emplacements de rangement existants
   const allExistingLocations = Array.from(
-    new Set(games.map(g => g.location ? g.location.trim() : '').filter(Boolean))
+    new Set([
+      ...customLocations,
+      ...games.map(g => g.location ? g.location.trim() : '')
+    ].filter(Boolean))
   ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
 
   return (
@@ -947,7 +1020,7 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
           onClose={() => setIsAdminOpen(false)}
           onLocationRenamed={handleAdminLocationRenamed}
           onLocationDeleted={handleAdminLocationDeleted}
-          onLocationCreated={(newLoc) => handleBarcodeGamePlaced(null, newLoc, null)}
+          onLocationCreated={handleAdminLocationCreated}
           onTagRenamed={handleAdminTagRenamed}
           onTagDeleted={handleAdminTagDeleted}
           onTagCreated={(tag) => {}}
