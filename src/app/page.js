@@ -1,21 +1,39 @@
 import { getGames, getAllMechanics, getAllThemes } from '@/lib/db';
 import CollectionManager from '@/components/CollectionManager';
+import fallbackGames from '@/lib/games_fallback.json';
 
-// Désactiver la mise en cache statique pour que la page affiche toujours les données les plus récentes de SQLite
 export const revalidate = 0;
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {
-  let initialGames = [];
+  let initialGames = fallbackGames || [];
   let allMechanics = [];
   let allThemes = [];
 
   try {
-    initialGames = getGames() || [];
-    allMechanics = getAllMechanics() || [];
-    allThemes = getAllThemes() || [];
+    const gamesFromDb = getGames();
+    if (gamesFromDb && gamesFromDb.length > 0) {
+      initialGames = gamesFromDb;
+    }
   } catch (error) {
-    console.error("Erreur serveur lors de la récupération des jeux:", error);
+    console.warn("Chargement depuis fallbackGames suite à:", error.message);
+  }
+
+  try {
+    allMechanics = getAllMechanics();
+    allThemes = getAllThemes();
+  } catch (error) {
+    console.warn("Erreur chargement thèmes/mécaniques:", error.message);
+  }
+
+  if (!allMechanics || allMechanics.length === 0) {
+    const mechs = new Set(initialGames.flatMap(g => g.mechanics || []));
+    allMechanics = Array.from(mechs).sort();
+  }
+
+  if (!allThemes || allThemes.length === 0) {
+    const th = new Set(initialGames.flatMap(g => g.themes || []));
+    allThemes = Array.from(th).sort();
   }
 
   return (
