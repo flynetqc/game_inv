@@ -96,18 +96,15 @@ export default function AdminManagerModal({
     setFeedback(null);
 
     try {
-      const res = await fetch('/api/admin/locations', {
+      if (onLocationRenamed) {
+        await onLocationRenamed(oldName, newName);
+      }
+
+      fetch('/api/admin/locations', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'rename', oldName, newName })
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erreur lors du renommage.");
-
-      if (onLocationRenamed) {
-        onLocationRenamed(oldName, newName);
-      }
+      }).catch(e => console.warn(e));
 
       setEditingItem(null);
       setFeedback({ type: 'success', message: `"${oldName}" a été renommé en "${newName}" sur tous les jeux.` });
@@ -130,16 +127,13 @@ export default function AdminManagerModal({
     setFeedback(null);
 
     try {
-      const res = await fetch(`/api/admin/locations?name=${encodeURIComponent(locationName)}`, {
-        method: 'DELETE'
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erreur lors de la suppression.");
-
       if (onLocationDeleted) {
-        onLocationDeleted(locationName);
+        await onLocationDeleted(locationName);
       }
+
+      fetch(`/api/admin/locations?name=${encodeURIComponent(locationName)}`, {
+        method: 'DELETE'
+      }).catch(e => console.warn(e));
 
       setFeedback({ type: 'success', message: `L'emplacement "${locationName}" a été supprimé.` });
     } catch (err) {
@@ -191,18 +185,15 @@ export default function AdminManagerModal({
     setFeedback(null);
 
     try {
-      const res = await fetch('/api/tags', {
+      if (onTagRenamed) {
+        await onTagRenamed(oldName, newName);
+      }
+
+      fetch('/api/tags', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'rename', oldName, newName })
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erreur lors du renommage.");
-
-      if (onTagRenamed) {
-        onTagRenamed(oldName, newName);
-      }
+      }).catch(e => console.warn(e));
 
       setEditingItem(null);
       setFeedback({ type: 'success', message: `Mot-clé "${oldName}" renommé en "${newName}".` });
@@ -225,16 +216,13 @@ export default function AdminManagerModal({
     setFeedback(null);
 
     try {
-      const res = await fetch(`/api/tags?tagName=${encodeURIComponent(tagName)}`, {
-        method: 'DELETE'
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erreur lors de la suppression.");
-
       if (onTagDeleted) {
-        onTagDeleted(tagName);
+        await onTagDeleted(tagName);
       }
+
+      fetch(`/api/tags?tagName=${encodeURIComponent(tagName)}`, {
+        method: 'DELETE'
+      }).catch(e => console.warn(e));
 
       setFeedback({ type: 'success', message: `Le mot-clé "${tagName}" a été supprimé.` });
     } catch (err) {

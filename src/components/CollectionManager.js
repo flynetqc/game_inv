@@ -311,25 +311,23 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
     e.preventDefault();
     if (!quickEditGame) return;
 
+    const gameId = quickEditGame.id;
+    const loc = quickLocation.trim();
+
     setQuickSaving(true);
     setQuickError(null);
 
     try {
-      const response = await fetch('/api/games/update', {
+      // 1. Mise à jour immédiate locale, localStorage et Supabase Cloud
+      handleUpdateGame(gameId, { location: loc });
+      setQuickEditGame(null);
+
+      // 2. Notification de l'API locale en arrière-plan
+      fetch('/api/games/update', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: quickEditGame.id,
-          location: quickLocation.trim(),
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Erreur de sauvegarde");
-      }
-
-      handleUpdateGame(quickEditGame.id, { location: quickLocation.trim() });
-      setQuickEditGame(null);
+        body: JSON.stringify({ id: gameId, location: loc }),
+      }).catch(err => console.warn(err));
     } catch (err) {
       setQuickError("Impossible de sauvegarder.");
     } finally {
