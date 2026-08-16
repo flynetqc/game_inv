@@ -56,20 +56,25 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
     try {
       const savedCustomLocs = localStorage.getItem('geekshelf_custom_locations');
       if (savedCustomLocs) {
-        setCustomLocations(JSON.parse(savedCustomLocs));
+        const parsedLocs = JSON.parse(savedCustomLocs);
+        if (Array.isArray(parsedLocs)) {
+          setCustomLocations(parsedLocs.filter(Boolean));
+        }
       }
 
       const savedOverrides = localStorage.getItem('geekshelf_game_overrides');
       if (savedOverrides) {
         const overrides = JSON.parse(savedOverrides);
-        setGames(prevGames =>
-          prevGames.map(game => {
-            if (overrides[game.id]) {
-              return { ...game, ...overrides[game.id] };
-            }
-            return game;
-          })
-        );
+        if (overrides && typeof overrides === 'object') {
+          setGames(prevGames =>
+            prevGames.map(game => {
+              if (overrides[game.id] && typeof overrides[game.id] === 'object') {
+                return { ...game, ...overrides[game.id] };
+              }
+              return game;
+            })
+          );
+        }
       }
     } catch (e) {
       console.error("Erreur lecture localStorage:", e);
@@ -82,16 +87,21 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
         const savedOverrides = localStorage.getItem('geekshelf_game_overrides');
         if (savedOverrides) {
           const localObj = JSON.parse(savedOverrides);
-          const entries = Object.entries(localObj);
-          if (entries.length > 0) {
-            const uploadBatch = entries.map(([id, val]) => ({
-              game_id: parseInt(id, 10),
-              location: val.location !== undefined ? val.location : undefined,
-              barcode: val.barcode !== undefined ? val.barcode : undefined,
-              custom_tags: val.customTags || undefined,
-              updated_at: new Date().toISOString()
-            }));
-            await supabase.from('game_overrides').upsert(uploadBatch);
+          if (localObj && typeof localObj === 'object') {
+            const entries = Object.entries(localObj).filter(([id, val]) => {
+              const numId = parseInt(id, 10);
+              return !isNaN(numId) && numId > 0 && val && typeof val === 'object';
+            });
+            if (entries.length > 0) {
+              const uploadBatch = entries.map(([id, val]) => ({
+                game_id: parseInt(id, 10),
+                location: val.location !== undefined ? val.location : undefined,
+                barcode: val.barcode !== undefined ? val.barcode : undefined,
+                custom_tags: val.customTags || undefined,
+                updated_at: new Date().toISOString()
+              }));
+              await supabase.from('game_overrides').upsert(uploadBatch);
+            }
           }
         }
 
@@ -101,13 +111,15 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
           const metaRow = data.find(item => item.game_id === -1);
           if (metaRow && Array.isArray(metaRow.custom_tags)) {
             setCustomLocations(prev => {
-              const merged = Array.from(new Set([...prev, ...metaRow.custom_tags]));
+              const merged = Array.from(new Set([...prev, ...metaRow.custom_tags])).filter(Boolean);
               localStorage.setItem('geekshelf_custom_locations', JSON.stringify(merged));
               return merged;
             });
           }
 
-          const cloudMap = new Map(data.filter(item => item.game_id > 0).map(item => [item.game_id, item]));
+          const cloudMap = new Map(
+            data.filter(item => item.game_id && item.game_id > 0).map(item => [item.game_id, item])
+          );
           
           setGames(prevGames =>
             prevGames.map(game => {
@@ -126,7 +138,7 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
 
           // Mettre à jour le cache local avec le cloud
           const updatedLocal = {};
-          data.filter(item => item.game_id > 0).forEach(item => {
+          data.filter(item => item.game_id && item.game_id > 0).forEach(item => {
             updatedLocal[item.game_id] = {
               location: item.location,
               barcode: item.barcode,
