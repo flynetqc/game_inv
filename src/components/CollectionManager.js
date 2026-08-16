@@ -8,6 +8,7 @@ import TravelTagModal from './TravelTagModal/TravelTagModal';
 import InventorySyncModal from './InventorySyncModal/InventorySyncModal';
 import ShelfView from './ShelfView/ShelfView';
 import BarcodeScanModal from './BarcodeScanModal/BarcodeScanModal';
+import { supabase } from '@/lib/supabase';
 import styles from './CollectionManager.module.css';
 
 // Supprime les accents, trémas, macrons et signes diacritiques (ex: Gùgōng -> gugong, Château -> chateau)
@@ -44,8 +45,9 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
   const [quickSaving, setQuickSaving] = useState(false);
   const [quickError, setQuickError] = useState(null);
 
-  // Charger les modifications persistées dans le navigateur (résout les redémarrages serverless Vercel)
+  // Charger les modifications depuis Supabase Cloud et localStorage
   useEffect(() => {
+    // 1. Chargement instantané depuis le stockage local du navigateur
     try {
       const savedOverrides = localStorage.getItem('geekshelf_game_overrides');
       if (savedOverrides) {
@@ -62,10 +64,77 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
     } catch (e) {
       console.error("Erreur lecture localStorage:", e);
     }
+
+    // 2. Synchronisation Cloud Supabase (temps réel multi-appareils)
+    const fetchCloudOverrides = async () => {
+      try {
+        const { data, error } = await supabase.from('game_overrides').select('*');
+        if (!error && data && data.length > 0) {
+          const cloudMap = new Map(data.map(item => [item.game_id, item]));
+          
+          setGames(prevGames =>
+            prevGames.map(game => {
+              if (cloudMap.has(game.id)) {
+                const cloudItem = cloudMap.get(game.id);
+                return {
+                  ...game,
+                  location: cloudItem.location !== undefined ? cloudItem.location : game.location,
+                  barcode: cloudItem.barcode !== undefined ? cloudItem.barcode : game.barcode,
+                  customTags: cloudItem.custom_tags || game.customTags
+                };
+              }
+              return game;
+            })
+          );
+
+          // Mettre à jour le cache local avec le cloud
+          const updatedLocal = {};
+          data.forEach(item => {
+            updatedLocal[item.game_id] = {
+              location: item.location,
+              barcode: item.barcode,
+              customTags: item.custom_tags
+            };
+          });
+          localStorage.setItem('geekshelf_game_overrides', JSON.stringify(updatedLocal));
+        }
+      } catch (err) {
+        console.warn("Supabase non accessible ou table en attente:", err);
+      }
+    };
+
+    fetchCloudOverrides();
+
+    // 3. Écouteur en temps réel (si vous scannez sur votre cell, votre PC se met à jour en direct !)
+    const channel = supabase
+      .channel('realtime_game_overrides')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'game_overrides' }, (payload) => {
+        const row = payload.new;
+        if (row && row.game_id) {
+          setGames(prevGames =>
+            prevGames.map(game => {
+              if (game.id === row.game_id) {
+                return {
+                  ...game,
+                  location: row.location !== undefined ? row.location : game.location,
+                  barcode: row.barcode !== undefined ? row.barcode : game.barcode,
+                  customTags: row.custom_tags || game.customTags
+                };
+              }
+              return game;
+            })
+          );
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
-  // Mettre à jour un jeu dans l'état local et persister dans le navigateur
-  const handleUpdateGame = (gameId, updatedFields) => {
+  // Mettre à jour un jeu dans l'état local, localStorage et Supabase Cloud
+  const handleUpdateGame = async (gameId, updatedFields) => {
     setGames(prevGames =>
       prevGames.map(game =>
         game.id === gameId ? { ...game, ...updatedFields } : game
@@ -78,6 +147,19 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
       localStorage.setItem('geekshelf_game_overrides', JSON.stringify(savedOverrides));
     } catch (e) {
       console.error("Erreur sauvegarde localStorage:", e);
+    }
+
+    // Sauvegarde Cloud Supabase
+    try {
+      await supabase.from('game_overrides').upsert({
+        game_id: gameId,
+        location: updatedFields.location !== undefined ? updatedFields.location : undefined,
+        barcode: updatedFields.barcode !== undefined ? updatedFields.barcode : undefined,
+        custom_tags: updatedFields.customTags || undefined,
+        updated_at: new Date().toISOString()
+      });
+    } catch (e) {
+      // Ignorer si hors-ligne
     }
   };
 
@@ -114,8 +196,8 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
     }
   };
 
-  // Traiter la mise à jour après un scan de code-barres
-  const handleBarcodeGamePlaced = (gameId, targetLocation, barcode) => {
+  // Traiter la mise à jour après un scan de code-barres (synchronisé avec Supabase)
+  const handleBarcodeGamePlaced = async (gameId, targetLocation, barcode) => {
     setGames(prevGames =>
       prevGames.map(game => {
         if (game.id === gameId) {
@@ -135,6 +217,18 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
       localStorage.setItem('geekshelf_game_overrides', JSON.stringify(savedOverrides));
     } catch (e) {
       console.error("Erreur sauvegarde localStorage:", e);
+    }
+
+    // Synchronisation immédiate vers Supabase Cloud
+    try {
+      await supabase.from('game_overrides').upsert({
+        game_id: gameId,
+        location: targetLocation,
+        barcode: barcode || undefined,
+        updated_at: new Date().toISOString()
+      });
+    } catch (e) {
+      console.warn("Erreur sync Supabase:", e);
     }
   };
 
