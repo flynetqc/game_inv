@@ -22,11 +22,12 @@ export function normalizeTitle(str) {
     .replace(/\[[^\]]*\]/g, ' ')
     // Décomposer la chaîne Unicode (supprime les accents)
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase();
+    .replace(/[\u0300-\u036f]/g, '');
 
-  // Retirer les codes SKU / références produit alphanumériques en début (ex: "MBGTB001EN")
-  clean = clean.replace(/^[a-z0-9]{6,16}\b/g, ' ');
+  // Retirer les codes SKU alphanumériques contenant OBLIGATOIREMENT à la fois des lettres et des chiffres (ex: "MBGTB001EN")
+  clean = clean.replace(/\b(?=[A-Za-z0-9]{5,20}\b)(?=[A-Za-z0-9]*\d)(?=[A-Za-z0-9]*[A-Za-z])[A-Za-z0-9]+\b/g, ' ');
+
+  clean = clean.toLowerCase();
 
   // Équivalences Fr <-> En courantes dans les titres BGG
   clean = clean
@@ -118,9 +119,8 @@ export function calculateTitleSimilarity(titleA, titleB) {
   const normA = normalizeTitle(titleA);
   const normB = normalizeTitle(titleB);
 
-  // 1. Égalité exacte après normalisation
+  if (!normA || !normB || normA.length === 0 || normB.length === 0) return 0;
   if (normA === normB) return 1.0;
-  if (normA.length === 0 || normB.length === 0) return 0;
 
   // 2. Vérification avec frontières de mots complètes (évite que "ten" matche "tenby")
   const escapedA = normA.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
