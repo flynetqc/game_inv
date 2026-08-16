@@ -70,8 +70,26 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
     }
 
     // 2. Synchronisation Cloud Supabase (temps réel multi-appareils)
-    const fetchCloudOverrides = async () => {
+    const syncWithCloud = async () => {
       try {
+        // a. Pousser d'abord les modifications du navigateur vers Supabase pour ne rien perdre
+        const savedOverrides = localStorage.getItem('geekshelf_game_overrides');
+        if (savedOverrides) {
+          const localObj = JSON.parse(savedOverrides);
+          const entries = Object.entries(localObj);
+          if (entries.length > 0) {
+            const uploadBatch = entries.map(([id, val]) => ({
+              game_id: parseInt(id, 10),
+              location: val.location !== undefined ? val.location : undefined,
+              barcode: val.barcode !== undefined ? val.barcode : undefined,
+              custom_tags: val.customTags || undefined,
+              updated_at: new Date().toISOString()
+            }));
+            await supabase.from('game_overrides').upsert(uploadBatch);
+          }
+        }
+
+        // b. Récupérer l'état complet depuis Supabase Cloud
         const { data, error } = await supabase.from('game_overrides').select('*');
         if (!error && data && data.length > 0) {
           const cloudMap = new Map(data.map(item => [item.game_id, item]));
@@ -107,7 +125,7 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
       }
     };
 
-    fetchCloudOverrides();
+    syncWithCloud();
 
     // 3. Écouteur en temps réel (si vous scannez sur votre cell, votre PC se met à jour en direct !)
     const channel = supabase
