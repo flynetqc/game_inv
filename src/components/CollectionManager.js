@@ -319,8 +319,10 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
     }
   };
 
-  // Actions d'administration globale
-  const handleAdminLocationRenamed = (oldName, newName) => {
+  // Actions d'administration globale (synchronisées avec Supabase Cloud)
+  const handleAdminLocationRenamed = async (oldName, newName) => {
+    const affectedGames = games.filter(g => g.location === oldName);
+
     setGames(prevGames =>
       prevGames.map(game =>
         game.location === oldName ? { ...game, location: newName } : game
@@ -338,9 +340,27 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
     } catch (e) {
       console.error(e);
     }
+
+    // Synchroniser vers Supabase Cloud
+    try {
+      if (affectedGames.length > 0) {
+        const batch = affectedGames.map(g => ({
+          game_id: g.id,
+          location: newName,
+          barcode: g.barcode || undefined,
+          custom_tags: g.customTags || undefined,
+          updated_at: new Date().toISOString()
+        }));
+        await supabase.from('game_overrides').upsert(batch);
+      }
+    } catch (err) {
+      console.warn("Erreur sync Supabase rename location:", err);
+    }
   };
 
-  const handleAdminLocationDeleted = (locationName) => {
+  const handleAdminLocationDeleted = async (locationName) => {
+    const affectedGames = games.filter(g => g.location === locationName);
+
     setGames(prevGames =>
       prevGames.map(game =>
         game.location === locationName ? { ...game, location: null } : game
@@ -358,9 +378,27 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
     } catch (e) {
       console.error(e);
     }
+
+    // Synchroniser la suppression vers Supabase Cloud
+    try {
+      if (affectedGames.length > 0) {
+        const batch = affectedGames.map(g => ({
+          game_id: g.id,
+          location: null,
+          barcode: g.barcode || undefined,
+          custom_tags: g.customTags || undefined,
+          updated_at: new Date().toISOString()
+        }));
+        await supabase.from('game_overrides').upsert(batch);
+      }
+    } catch (err) {
+      console.warn("Erreur sync Supabase delete location:", err);
+    }
   };
 
-  const handleAdminTagRenamed = (oldName, newName) => {
+  const handleAdminTagRenamed = async (oldName, newName) => {
+    const affectedGames = games.filter(g => Array.isArray(g.customTags) && g.customTags.includes(oldName));
+
     setGames(prevGames =>
       prevGames.map(game => {
         if (Array.isArray(game.customTags) && game.customTags.includes(oldName)) {
@@ -382,9 +420,29 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
     } catch (e) {
       console.error(e);
     }
+
+    try {
+      if (affectedGames.length > 0) {
+        const batch = affectedGames.map(g => {
+          const newTags = (g.customTags || []).map(t => (t === oldName ? newName : t));
+          return {
+            game_id: g.id,
+            location: g.location || undefined,
+            barcode: g.barcode || undefined,
+            custom_tags: newTags,
+            updated_at: new Date().toISOString()
+          };
+        });
+        await supabase.from('game_overrides').upsert(batch);
+      }
+    } catch (err) {
+      console.warn("Erreur sync Supabase rename tag:", err);
+    }
   };
 
-  const handleAdminTagDeleted = (tagName) => {
+  const handleAdminTagDeleted = async (tagName) => {
+    const affectedGames = games.filter(g => Array.isArray(g.customTags) && g.customTags.includes(tagName));
+
     setGames(prevGames =>
       prevGames.map(game => {
         if (Array.isArray(game.customTags) && game.customTags.includes(tagName)) {
@@ -408,6 +466,24 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
       localStorage.setItem('geekshelf_game_overrides', JSON.stringify(savedOverrides));
     } catch (e) {
       console.error(e);
+    }
+
+    try {
+      if (affectedGames.length > 0) {
+        const batch = affectedGames.map(g => {
+          const newTags = (g.customTags || []).filter(t => t !== tagName);
+          return {
+            game_id: g.id,
+            location: g.location || undefined,
+            barcode: g.barcode || undefined,
+            custom_tags: newTags,
+            updated_at: new Date().toISOString()
+          };
+        });
+        await supabase.from('game_overrides').upsert(batch);
+      }
+    } catch (err) {
+      console.warn("Erreur sync Supabase delete tag:", err);
     }
   };
 
