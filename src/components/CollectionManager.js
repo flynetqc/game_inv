@@ -375,12 +375,13 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
 
     let updatedList = [];
     setCustomLocations(prev => {
-      updatedList = Array.from(new Set([...prev, ...items]));
-      try {
-        localStorage.setItem('geekshelf_custom_locations', JSON.stringify(updatedList));
-      } catch (e) {}
+      updatedList = Array.from(new Set([...prev, ...items])).filter(Boolean);
       return updatedList;
     });
+
+    try {
+      localStorage.setItem('geekshelf_custom_locations', JSON.stringify(updatedList));
+    } catch (e) {}
 
     try {
       await supabase.from('game_overrides').upsert({
@@ -395,19 +396,12 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
 
   const handleAdminLocationRenamed = async (oldName, newName) => {
     const affectedGames = games.filter(g => g.location === oldName);
+    const updatedCustom = Array.from(new Set(customLocations.map(l => l === oldName ? newName : l))).filter(Boolean);
 
-    setCustomLocations(prev => {
-      const updated = Array.from(new Set(prev.map(l => l === oldName ? newName : l)));
-      try {
-        localStorage.setItem('geekshelf_custom_locations', JSON.stringify(updated));
-      } catch (e) {}
-      supabase.from('game_overrides').upsert({
-        game_id: -1,
-        custom_tags: updated,
-        updated_at: new Date().toISOString()
-      }).catch(e => console.warn(e));
-      return updated;
-    });
+    setCustomLocations(updatedCustom);
+    try {
+      localStorage.setItem('geekshelf_custom_locations', JSON.stringify(updatedCustom));
+    } catch (e) {}
 
     setGames(prevGames =>
       prevGames.map(game =>
@@ -417,19 +411,26 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
 
     try {
       const savedOverrides = JSON.parse(localStorage.getItem('geekshelf_game_overrides') || '{}');
-      Object.keys(savedOverrides).forEach(id => {
-        if (savedOverrides[id].location === oldName) {
-          savedOverrides[id].location = newName;
-        }
-      });
-      localStorage.setItem('geekshelf_game_overrides', JSON.stringify(savedOverrides));
+      if (savedOverrides && typeof savedOverrides === 'object') {
+        Object.keys(savedOverrides).forEach(id => {
+          if (savedOverrides[id] && savedOverrides[id].location === oldName) {
+            savedOverrides[id].location = newName;
+          }
+        });
+        localStorage.setItem('geekshelf_game_overrides', JSON.stringify(savedOverrides));
+      }
     } catch (e) {
       console.error(e);
     }
 
     // Synchroniser vers Supabase Cloud
     try {
-      // Mettre à jour par query SQL
+      await supabase.from('game_overrides').upsert({
+        game_id: -1,
+        custom_tags: updatedCustom,
+        updated_at: new Date().toISOString()
+      });
+
       await supabase
         .from('game_overrides')
         .update({ location: newName, updated_at: new Date().toISOString() })
@@ -452,19 +453,12 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
 
   const handleAdminLocationDeleted = async (locationName) => {
     const affectedGames = games.filter(g => g.location === locationName);
+    const updatedCustom = Array.from(new Set(customLocations.filter(l => l !== locationName))).filter(Boolean);
 
-    setCustomLocations(prev => {
-      const updated = Array.from(new Set(prev.filter(l => l !== locationName)));
-      try {
-        localStorage.setItem('geekshelf_custom_locations', JSON.stringify(updated));
-      } catch (e) {}
-      supabase.from('game_overrides').upsert({
-        game_id: -1,
-        custom_tags: updated,
-        updated_at: new Date().toISOString()
-      }).catch(e => console.warn(e));
-      return updated;
-    });
+    setCustomLocations(updatedCustom);
+    try {
+      localStorage.setItem('geekshelf_custom_locations', JSON.stringify(updatedCustom));
+    } catch (e) {}
 
     setGames(prevGames =>
       prevGames.map(game =>
@@ -474,18 +468,26 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
 
     try {
       const savedOverrides = JSON.parse(localStorage.getItem('geekshelf_game_overrides') || '{}');
-      Object.keys(savedOverrides).forEach(id => {
-        if (savedOverrides[id].location === locationName) {
-          savedOverrides[id].location = null;
-        }
-      });
-      localStorage.setItem('geekshelf_game_overrides', JSON.stringify(savedOverrides));
+      if (savedOverrides && typeof savedOverrides === 'object') {
+        Object.keys(savedOverrides).forEach(id => {
+          if (savedOverrides[id] && savedOverrides[id].location === locationName) {
+            savedOverrides[id].location = null;
+          }
+        });
+        localStorage.setItem('geekshelf_game_overrides', JSON.stringify(savedOverrides));
+      }
     } catch (e) {
       console.error(e);
     }
 
     // Synchroniser la suppression vers Supabase Cloud
     try {
+      await supabase.from('game_overrides').upsert({
+        game_id: -1,
+        custom_tags: updatedCustom,
+        updated_at: new Date().toISOString()
+      });
+
       await supabase
         .from('game_overrides')
         .update({ location: null, updated_at: new Date().toISOString() })
