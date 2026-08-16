@@ -41,6 +41,7 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [selectedGame, setSelectedGame] = useState(null);
   const [customLocations, setCustomLocations] = useState([]);
+  const [customDefinedTags, setCustomDefinedTags] = useState([]);
   
   const menuRef = useRef(null);
   
@@ -59,6 +60,14 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
         const parsedLocs = JSON.parse(savedCustomLocs);
         if (Array.isArray(parsedLocs)) {
           setCustomLocations(parsedLocs.filter(Boolean));
+        }
+      }
+
+      const savedCustomTags = localStorage.getItem('geekshelf_defined_tags');
+      if (savedCustomTags) {
+        const parsedTags = JSON.parse(savedCustomTags);
+        if (Array.isArray(parsedTags)) {
+          setCustomDefinedTags(parsedTags.filter(Boolean));
         }
       }
 
@@ -117,6 +126,15 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
             });
           }
 
+          const metaTagsRow = data.find(item => item.game_id === -2);
+          if (metaTagsRow && Array.isArray(metaTagsRow.custom_tags)) {
+            setCustomDefinedTags(prev => {
+              const merged = Array.from(new Set([...prev, ...metaTagsRow.custom_tags])).filter(Boolean);
+              localStorage.setItem('geekshelf_defined_tags', JSON.stringify(merged));
+              return merged;
+            });
+          }
+
           const cloudMap = new Map(
             data.filter(item => item.game_id && item.game_id > 0).map(item => [item.game_id, item])
           );
@@ -163,6 +181,9 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
           if (row.game_id === -1 && Array.isArray(row.custom_tags)) {
             setCustomLocations(row.custom_tags);
             localStorage.setItem('geekshelf_custom_locations', JSON.stringify(row.custom_tags));
+          } else if (row.game_id === -2 && Array.isArray(row.custom_tags)) {
+            setCustomDefinedTags(row.custom_tags);
+            localStorage.setItem('geekshelf_defined_tags', JSON.stringify(row.custom_tags));
           } else if (row.game_id > 0) {
             setGames(prevGames =>
               prevGames.map(game => {
@@ -508,8 +529,48 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
     }
   };
 
+  const handleAdminTagCreated = async (newTag) => {
+    if (!newTag) return;
+    const items = newTag.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
+    if (items.length === 0) return;
+
+    let updatedList = [];
+    setCustomDefinedTags(prev => {
+      updatedList = Array.from(new Set([...prev, ...items])).filter(Boolean);
+      return updatedList;
+    });
+
+    try {
+      localStorage.setItem('geekshelf_defined_tags', JSON.stringify(updatedList));
+    } catch (e) {}
+
+    try {
+      await supabase.from('game_overrides').upsert({
+        game_id: -2,
+        custom_tags: updatedList,
+        updated_at: new Date().toISOString()
+      });
+    } catch (err) {
+      console.warn("Erreur sauvegarde tag créé:", err);
+    }
+  };
+
   const handleAdminTagRenamed = async (oldName, newName) => {
     const affectedGames = games.filter(g => Array.isArray(g.customTags) && g.customTags.includes(oldName));
+    const updatedCustomTags = Array.from(new Set(customDefinedTags.map(t => t === oldName ? newName : t))).filter(Boolean);
+
+    setCustomDefinedTags(updatedCustomTags);
+    try {
+      localStorage.setItem('geekshelf_defined_tags', JSON.stringify(updatedCustomTags));
+    } catch (e) {}
+
+    try {
+      await supabase.from('game_overrides').upsert({
+        game_id: -2,
+        custom_tags: updatedCustomTags,
+        updated_at: new Date().toISOString()
+      });
+    } catch (err) {}
 
     setGames(prevGames =>
       prevGames.map(game => {
@@ -523,12 +584,14 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
 
     try {
       const savedOverrides = JSON.parse(localStorage.getItem('geekshelf_game_overrides') || '{}');
-      Object.keys(savedOverrides).forEach(id => {
-        if (Array.isArray(savedOverrides[id]?.customTags)) {
-          savedOverrides[id].customTags = savedOverrides[id].customTags.map(t => (t === oldName ? newName : t));
-        }
-      });
-      localStorage.setItem('geekshelf_game_overrides', JSON.stringify(savedOverrides));
+      if (savedOverrides && typeof savedOverrides === 'object') {
+        Object.keys(savedOverrides).forEach(id => {
+          if (savedOverrides[id] && Array.isArray(savedOverrides[id].customTags)) {
+            savedOverrides[id].customTags = savedOverrides[id].customTags.map(t => (t === oldName ? newName : t));
+          }
+        });
+        localStorage.setItem('geekshelf_game_overrides', JSON.stringify(savedOverrides));
+      }
     } catch (e) {
       console.error(e);
     }
@@ -554,6 +617,20 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
 
   const handleAdminTagDeleted = async (tagName) => {
     const affectedGames = games.filter(g => Array.isArray(g.customTags) && g.customTags.includes(tagName));
+    const updatedCustomTags = Array.from(new Set(customDefinedTags.filter(t => t !== tagName))).filter(Boolean);
+
+    setCustomDefinedTags(updatedCustomTags);
+    try {
+      localStorage.setItem('geekshelf_defined_tags', JSON.stringify(updatedCustomTags));
+    } catch (e) {}
+
+    try {
+      await supabase.from('game_overrides').upsert({
+        game_id: -2,
+        custom_tags: updatedCustomTags,
+        updated_at: new Date().toISOString()
+      });
+    } catch (err) {}
 
     setGames(prevGames =>
       prevGames.map(game => {
@@ -570,12 +647,14 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
 
     try {
       const savedOverrides = JSON.parse(localStorage.getItem('geekshelf_game_overrides') || '{}');
-      Object.keys(savedOverrides).forEach(id => {
-        if (Array.isArray(savedOverrides[id]?.customTags)) {
-          savedOverrides[id].customTags = savedOverrides[id].customTags.filter(t => t !== tagName);
-        }
-      });
-      localStorage.setItem('geekshelf_game_overrides', JSON.stringify(savedOverrides));
+      if (savedOverrides && typeof savedOverrides === 'object') {
+        Object.keys(savedOverrides).forEach(id => {
+          if (savedOverrides[id] && Array.isArray(savedOverrides[id].customTags)) {
+            savedOverrides[id].customTags = savedOverrides[id].customTags.filter(t => t !== tagName);
+          }
+        });
+        localStorage.setItem('geekshelf_game_overrides', JSON.stringify(savedOverrides));
+      }
     } catch (e) {
       console.error(e);
     }
@@ -682,7 +761,12 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
   const missingImagesCount = games.filter(g => !g.image_url && !g.thumbnail_url).length;
 
   // Extraire la liste dynamique de tous les tags personnalisés existants
-  const allCustomTags = Array.from(new Set(games.flatMap(g => g.customTags || []))).sort();
+  const allCustomTags = Array.from(
+    new Set([
+      ...customDefinedTags,
+      ...games.flatMap(g => g.customTags || [])
+    ].filter(Boolean))
+  ).sort();
 
   // Extraire la liste de tous les emplacements de rangement existants
   const allExistingLocations = Array.from(
@@ -1049,7 +1133,7 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
           onLocationCreated={handleAdminLocationCreated}
           onTagRenamed={handleAdminTagRenamed}
           onTagDeleted={handleAdminTagDeleted}
-          onTagCreated={(tag) => {}}
+          onTagCreated={handleAdminTagCreated}
         />
       )}
 
