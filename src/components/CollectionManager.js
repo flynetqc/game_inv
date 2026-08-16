@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import GameCard from './GameCard/GameCard';
 import GameDetailModal from './GameDetailModal/GameDetailModal';
 import ImportModal from './ImportModal/ImportModal';
@@ -32,13 +32,16 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
   const [viewMode, setViewMode] = useState('grid'); // 'grid' ou 'list'
   const [itemTypeFilter, setItemTypeFilter] = useState('all'); // 'all', 'standalone', 'expansion'
 
-  // États pour les modales
+  // États pour les modales et le menu
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isTravelOpen, setIsTravelOpen] = useState(false);
   const [isSyncOpen, setIsSyncOpen] = useState(false);
   const [isBarcodeScanOpen, setIsBarcodeScanOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [selectedGame, setSelectedGame] = useState(null);
+  
+  const menuRef = useRef(null);
   
   // Quick location edit states
   const [quickEditGame, setQuickEditGame] = useState(null);
@@ -133,6 +136,21 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
       supabase.removeChannel(channel);
     };
   }, []);
+
+  // Fermer le menu déroulant si on clique en dehors
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setIsMenuOpen(false);
+      }
+    };
+    if (isMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isMenuOpen]);
 
   // Mettre à jour un jeu dans l'état local, localStorage et Supabase Cloud
   const handleUpdateGame = async (gameId, updatedFields) => {
@@ -686,44 +704,69 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
                   </select>
                 </div>
 
-                <button 
-                  className={styles.barcodeScanBtn}
-                  onClick={() => setIsBarcodeScanOpen(true)}
-                  title="Scanner le code-barres au dos d'une boîte de jeu pour la ranger sur une tablette"
-                >
-                  📷 Scan Code-Barres
-                </button>
+                {/* Menu déroulant compact pour les outils et actions */}
+                <div className={styles.menuDropdownContainer} ref={menuRef}>
+                  <button 
+                    className={styles.menuTriggerBtn}
+                    onClick={() => setIsMenuOpen(prev => !prev)}
+                    title="Menu des outils et actions"
+                    aria-expanded={isMenuOpen}
+                  >
+                    <span>⚡ Outils & Actions</span>
+                    <span style={{ fontSize: '0.72rem', transition: 'transform 0.2s', transform: isMenuOpen ? 'rotate(180deg)' : 'none' }}>▼</span>
+                  </button>
 
-                <button 
-                  className={styles.syncBtn}
-                  onClick={() => setIsSyncOpen(true)}
-                  title="Synchroniser un inventaire physique (Google Sheet)"
-                >
-                  📋 Synchro Sheet
-                </button>
+                  {isMenuOpen && (
+                    <div className={styles.menuDropdown}>
+                      <button 
+                        type="button"
+                        className={styles.menuItem}
+                        onClick={() => { setIsBarcodeScanOpen(true); setIsMenuOpen(false); }}
+                      >
+                        <span className={styles.menuItemIcon}>📷</span>
+                        <span>Scanner Code-Barres</span>
+                      </button>
 
-                <button 
-                  className={styles.travelBtn}
-                  onClick={() => setIsTravelOpen(true)}
-                  title="Rechercher des thèmes de voyage par mots-clés"
-                >
-                  🔍 Assistant Voyage
-                </button>
+                      <button 
+                        type="button"
+                        className={styles.menuItem}
+                        onClick={() => { setIsSyncOpen(true); setIsMenuOpen(false); }}
+                      >
+                        <span className={styles.menuItemIcon}>📋</span>
+                        <span>Synchro Sheet</span>
+                      </button>
 
-                <button 
-                  className={styles.adminBtn}
-                  onClick={() => setIsAdminOpen(true)}
-                  title="Gérer, renommer et modifier vos emplacements et vos mots-clés"
-                >
-                  ⚙️ Organisation
-                </button>
+                      <button 
+                        type="button"
+                        className={styles.menuItem}
+                        onClick={() => { setIsTravelOpen(true); setIsMenuOpen(false); }}
+                      >
+                        <span className={styles.menuItemIcon}>🔍</span>
+                        <span>Assistant Voyage</span>
+                      </button>
 
-                <button 
-                  className={styles.importBtn}
-                  onClick={() => setIsImportOpen(true)}
-                >
-                  📥 Réimporter un CSV
-                </button>
+                      <button 
+                        type="button"
+                        className={styles.menuItem}
+                        onClick={() => { setIsAdminOpen(true); setIsMenuOpen(false); }}
+                      >
+                        <span className={styles.menuItemIcon}>⚙️</span>
+                        <span>Organisation & Admin</span>
+                      </button>
+
+                      <div className={styles.menuDivider} />
+
+                      <button 
+                        type="button"
+                        className={styles.menuItem}
+                        onClick={() => { setIsImportOpen(true); setIsMenuOpen(false); }}
+                      >
+                        <span className={styles.menuItemIcon}>📥</span>
+                        <span>Réimporter un CSV</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
