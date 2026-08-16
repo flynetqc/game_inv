@@ -262,6 +262,24 @@ export function updateGameLocation(id, location) {
 }
 
 /**
+ * Renomme un emplacement de rangement sur tous les jeux associés
+ */
+export function renameLocation(oldName, newName) {
+  const cleanOld = oldName.trim();
+  const cleanNew = newName.trim();
+  const stmt = db.prepare(`UPDATE games SET location = ? WHERE location = ?`);
+  return stmt.run(cleanNew, cleanOld);
+}
+
+/**
+ * Supprime un emplacement de rangement (dissocie tous les jeux)
+ */
+export function deleteLocation(locationName) {
+  const stmt = db.prepare(`UPDATE games SET location = NULL WHERE location = ?`);
+  return stmt.run(locationName.trim());
+}
+
+/**
  * Associe ou met à jour le code-barres (UPC/EAN) d'un jeu
  */
 export function updateGameBarcode(id, barcode) {
@@ -469,14 +487,46 @@ export function removeCustomTagFromGame(gameId, tagName) {
   const row = selectStmt.get(tagName);
   if (!row) return;
   
-  db.prepare(`
-    DELETE FROM game_custom_tags WHERE game_id = ? AND tag_id = ?
-  `).run(gameId, row.id);
-  
-  db.prepare(`
-    DELETE FROM custom_tags 
-    WHERE id = ? AND id NOT IN (SELECT DISTINCT tag_id FROM game_custom_tags)
-  `).run(row.id);
+  const deleteStmt = db.prepare(`
+    DELETE FROM game_custom_tags 
+    WHERE game_id = ? AND tag_id = ?
+  `);
+  return deleteStmt.run(gameId, row.id);
+}
+
+/**
+ * Crée un nouveau mot-clé personnalisé s'il n'existe pas
+ */
+export function createCustomTag(tagName) {
+  const cleanName = tagName.trim();
+  if (!cleanName) return null;
+  const stmt = db.prepare(`INSERT OR IGNORE INTO custom_tags (name) VALUES (?)`);
+  return stmt.run(cleanName);
+}
+
+/**
+ * Renomme un mot-clé personnalisé globalement
+ */
+export function renameCustomTag(oldName, newName) {
+  const cleanOld = oldName.trim();
+  const cleanNew = newName.trim();
+  if (!cleanOld || !cleanNew) return null;
+  const stmt = db.prepare(`UPDATE custom_tags SET name = ? WHERE name = ?`);
+  return stmt.run(cleanNew, cleanOld);
+}
+
+/**
+ * Supprime un mot-clé personnalisé de la base et de tous les jeux
+ */
+export function deleteCustomTag(tagName) {
+  const cleanName = tagName.trim();
+  if (!cleanName) return null;
+  const selectStmt = db.prepare(`SELECT id FROM custom_tags WHERE name = ?`);
+  const row = selectStmt.get(cleanName);
+  if (!row) return null;
+
+  db.prepare(`DELETE FROM game_custom_tags WHERE tag_id = ?`).run(row.id);
+  return db.prepare(`DELETE FROM custom_tags WHERE id = ?`).run(row.id);
 }
 
 /**

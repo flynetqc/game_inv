@@ -8,6 +8,7 @@ import TravelTagModal from './TravelTagModal/TravelTagModal';
 import InventorySyncModal from './InventorySyncModal/InventorySyncModal';
 import ShelfView from './ShelfView/ShelfView';
 import BarcodeScanModal from './BarcodeScanModal/BarcodeScanModal';
+import AdminManagerModal from './AdminManagerModal/AdminManagerModal';
 import { supabase } from '@/lib/supabase';
 import styles from './CollectionManager.module.css';
 
@@ -27,7 +28,6 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
   const [selectedTheme, setSelectedTheme] = useState('');
   const [selectedCustomTag, setSelectedCustomTag] = useState('');
   const [playerCount, setPlayerCount] = useState('');
-  const [locationFilter, setLocationFilter] = useState('all'); // 'all', 'placed', 'unplaced'
   const [sortBy, setSortBy] = useState('title'); // 'title', 'rating', 'plays', 'year'
   const [viewMode, setViewMode] = useState('grid'); // 'grid' ou 'list'
   const [itemTypeFilter, setItemTypeFilter] = useState('all'); // 'all', 'standalone', 'expansion'
@@ -37,6 +37,7 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
   const [isTravelOpen, setIsTravelOpen] = useState(false);
   const [isSyncOpen, setIsSyncOpen] = useState(false);
   const [isBarcodeScanOpen, setIsBarcodeScanOpen] = useState(false);
+  const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [selectedGame, setSelectedGame] = useState(null);
   
   // Quick location edit states
@@ -300,6 +301,98 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
     }
   };
 
+  // Actions d'administration globale
+  const handleAdminLocationRenamed = (oldName, newName) => {
+    setGames(prevGames =>
+      prevGames.map(game =>
+        game.location === oldName ? { ...game, location: newName } : game
+      )
+    );
+
+    try {
+      const savedOverrides = JSON.parse(localStorage.getItem('geekshelf_game_overrides') || '{}');
+      Object.keys(savedOverrides).forEach(id => {
+        if (savedOverrides[id].location === oldName) {
+          savedOverrides[id].location = newName;
+        }
+      });
+      localStorage.setItem('geekshelf_game_overrides', JSON.stringify(savedOverrides));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleAdminLocationDeleted = (locationName) => {
+    setGames(prevGames =>
+      prevGames.map(game =>
+        game.location === locationName ? { ...game, location: null } : game
+      )
+    );
+
+    try {
+      const savedOverrides = JSON.parse(localStorage.getItem('geekshelf_game_overrides') || '{}');
+      Object.keys(savedOverrides).forEach(id => {
+        if (savedOverrides[id].location === locationName) {
+          savedOverrides[id].location = null;
+        }
+      });
+      localStorage.setItem('geekshelf_game_overrides', JSON.stringify(savedOverrides));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleAdminTagRenamed = (oldName, newName) => {
+    setGames(prevGames =>
+      prevGames.map(game => {
+        if (Array.isArray(game.customTags) && game.customTags.includes(oldName)) {
+          const newTags = game.customTags.map(t => (t === oldName ? newName : t));
+          return { ...game, customTags: newTags };
+        }
+        return game;
+      })
+    );
+
+    try {
+      const savedOverrides = JSON.parse(localStorage.getItem('geekshelf_game_overrides') || '{}');
+      Object.keys(savedOverrides).forEach(id => {
+        if (Array.isArray(savedOverrides[id]?.customTags)) {
+          savedOverrides[id].customTags = savedOverrides[id].customTags.map(t => (t === oldName ? newName : t));
+        }
+      });
+      localStorage.setItem('geekshelf_game_overrides', JSON.stringify(savedOverrides));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleAdminTagDeleted = (tagName) => {
+    setGames(prevGames =>
+      prevGames.map(game => {
+        if (Array.isArray(game.customTags) && game.customTags.includes(tagName)) {
+          return { ...game, customTags: game.customTags.filter(t => t !== tagName) };
+        }
+        return game;
+      })
+    );
+
+    if (selectedCustomTag === tagName) {
+      setSelectedCustomTag('');
+    }
+
+    try {
+      const savedOverrides = JSON.parse(localStorage.getItem('geekshelf_game_overrides') || '{}');
+      Object.keys(savedOverrides).forEach(id => {
+        if (Array.isArray(savedOverrides[id]?.customTags)) {
+          savedOverrides[id].customTags = savedOverrides[id].customTags.filter(t => t !== tagName);
+        }
+      });
+      localStorage.setItem('geekshelf_game_overrides', JSON.stringify(savedOverrides));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   // Réinitialiser tous les filtres
   const handleResetFilters = () => {
     setSearchQuery('');
@@ -307,7 +400,6 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
     setSelectedTheme('');
     setSelectedCustomTag('');
     setPlayerCount('');
-    setLocationFilter('all');
     setItemTypeFilter('all');
   };
 
@@ -345,22 +437,12 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
       }
     }
 
-    // Filtre par statut de rangement (localisation)
-    if (locationFilter === 'placed' && (!game.location || game.location.trim() === '')) {
+    // Filtre par type d'élément (jeu de base ou extension)
+    if (itemTypeFilter === 'standalone' && game.item_type === 'expansion') {
       return false;
     }
-    if (locationFilter === 'unplaced' && game.location && game.location.trim() !== '') {
+    if (itemTypeFilter === 'expansion' && game.item_type !== 'expansion') {
       return false;
-    }
-
-    // Filtre par type de jeu (standalone / expansion)
-    if (itemTypeFilter !== 'all') {
-      if (itemTypeFilter === 'standalone' && game.item_type !== 'standalone') {
-        return false;
-      }
-      if (itemTypeFilter === 'expansion' && game.item_type !== 'expansion') {
-        return false;
-      }
     }
 
     return true;
@@ -497,30 +579,6 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
             </div>
 
             <div className={styles.sidebarSection}>
-              <h3>Statut de rangement</h3>
-              <div className={styles.buttonGroup}>
-                <button
-                  className={`${styles.filterBtn} ${locationFilter === 'all' ? styles.active : ''}`}
-                  onClick={() => setLocationFilter('all')}
-                >
-                  Tous ({games.length})
-                </button>
-                <button
-                  className={`${styles.filterBtn} ${locationFilter === 'placed' ? styles.active : ''}`}
-                  onClick={() => setLocationFilter('placed')}
-                >
-                  📍 Rangés ({placedCount})
-                </button>
-                <button
-                  className={`${styles.filterBtn} ${locationFilter === 'unplaced' ? styles.active : ''}`}
-                  onClick={() => setLocationFilter('unplaced')}
-                >
-                  ❓ À ranger ({games.length - placedCount})
-                </button>
-              </div>
-            </div>
-
-            <div className={styles.sidebarSection}>
               <h3>Type de jeu</h3>
               <div className={styles.buttonGroup}>
                 <button
@@ -653,6 +711,14 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
                 </button>
 
                 <button 
+                  className={styles.adminBtn}
+                  onClick={() => setIsAdminOpen(true)}
+                  title="Gérer, renommer et modifier vos emplacements et vos mots-clés"
+                >
+                  ⚙️ Organisation
+                </button>
+
+                <button 
                   className={styles.importBtn}
                   onClick={() => setIsImportOpen(true)}
                 >
@@ -734,6 +800,22 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
           existingLocations={allExistingLocations}
           onClose={() => setIsBarcodeScanOpen(false)}
           onGamePlaced={handleBarcodeGamePlaced}
+        />
+      )}
+
+      {/* Modale d'Administration des Emplacements et Mots-Clés */}
+      {isAdminOpen && (
+        <AdminManagerModal
+          games={games}
+          existingLocations={allExistingLocations}
+          allCustomTags={allCustomTags}
+          onClose={() => setIsAdminOpen(false)}
+          onLocationRenamed={handleAdminLocationRenamed}
+          onLocationDeleted={handleAdminLocationDeleted}
+          onLocationCreated={(newLoc) => handleBarcodeGamePlaced(null, newLoc, null)}
+          onTagRenamed={handleAdminTagRenamed}
+          onTagDeleted={handleAdminTagDeleted}
+          onTagCreated={(tag) => {}}
         />
       )}
 

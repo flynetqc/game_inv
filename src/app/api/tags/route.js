@@ -4,8 +4,13 @@ import {
   addCustomTagToGame, 
   removeCustomTagFromGame, 
   searchGamesByKeywords,
-  bulkAddTagToGames 
+  bulkAddTagToGames,
+  createCustomTag,
+  renameCustomTag,
+  deleteCustomTag
 } from '@/lib/db';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(request) {
   try {
@@ -37,6 +42,7 @@ export async function POST(request) {
     
     const cleanTagName = tagName.trim();
     
+    // Application en lot
     if (gameIds && Array.isArray(gameIds)) {
       bulkAddTagToGames(gameIds, cleanTagName);
       return NextResponse.json({ 
@@ -45,14 +51,44 @@ export async function POST(request) {
       });
     }
     
+    // Application à un seul jeu
     if (gameId) {
       addCustomTagToGame(parseInt(gameId, 10), cleanTagName);
       return NextResponse.json({ success: true });
     }
     
-    return NextResponse.json({ error: 'Identifiant de jeu requis.' }, { status: 400 });
+    // Création simple d'un nouveau tag global
+    createCustomTag(cleanTagName);
+    return NextResponse.json({ 
+      success: true, 
+      message: `Mot-clé "${cleanTagName}" créé avec succès.` 
+    });
   } catch (error) {
     console.error('Erreur dans POST /api/tags:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function PATCH(request) {
+  try {
+    const body = await request.json();
+    const { action, oldName, newName } = body;
+
+    if (action === 'rename') {
+      if (!oldName || !newName) {
+        return NextResponse.json({ error: "Ancien et nouveau nom de mot-clé requis." }, { status: 400 });
+      }
+
+      renameCustomTag(oldName, newName);
+      return NextResponse.json({ 
+        success: true, 
+        message: `Le mot-clé "${oldName}" a été renommé en "${newName}".` 
+      });
+    }
+
+    return NextResponse.json({ error: "Action non supportée." }, { status: 400 });
+  } catch (error) {
+    console.error('Erreur dans PATCH /api/tags:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
@@ -63,12 +99,22 @@ export async function DELETE(request) {
     const gameIdStr = searchParams.get('gameId');
     const tagName = searchParams.get('tagName');
     
-    if (!gameIdStr || !tagName) {
-      return NextResponse.json({ error: 'Identifiant (gameId) et nom de tag (tagName) requis.' }, { status: 400 });
+    if (!tagName) {
+      return NextResponse.json({ error: 'Nom du mot-clé requis.' }, { status: 400 });
     }
-    
-    removeCustomTagFromGame(parseInt(gameIdStr, 10), tagName.trim());
-    return NextResponse.json({ success: true });
+
+    // Suppression d'un tag sur un seul jeu
+    if (gameIdStr) {
+      removeCustomTagFromGame(parseInt(gameIdStr, 10), tagName.trim());
+      return NextResponse.json({ success: true });
+    }
+
+    // Suppression globale du tag
+    deleteCustomTag(tagName.trim());
+    return NextResponse.json({ 
+      success: true, 
+      message: `Le mot-clé "${tagName}" a été supprimé de la base et de tous les jeux.` 
+    });
   } catch (error) {
     console.error('Erreur dans DELETE /api/tags:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });

@@ -308,6 +308,28 @@
   box-shadow: 0 4px 14px rgba(124, 58, 237, 0.3);
 }
 
+.adminBtn {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: var(--text-main);
+  padding: 0.55rem 1.1rem;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.adminBtn:hover {
+  background: #334155;
+  border-color: #334155;
+  color: white;
+  box-shadow: 0 4px 14px rgba(51, 65, 85, 0.25);
+}
+
 /* Grille de jeux */
 .grid {
   display: grid;
