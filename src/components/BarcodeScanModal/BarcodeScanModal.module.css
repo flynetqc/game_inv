@@ -155,6 +155,27 @@
   box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.15);
 }
 
+.locationHelpTip {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.8rem;
+  color: #1e40af;
+  background: #eff6ff;
+  border: 1px solid #dbeafe;
+  padding: 0.4rem 0.65rem;
+  border-radius: 8px;
+}
+
+.locationHelpTip code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 800;
+  background: #ffffff;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  border: 1px solid #bfdbfe;
+}
+
 .suggestionsList {
   display: flex;
   flex-wrap: wrap;

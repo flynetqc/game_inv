@@ -58,7 +58,11 @@ export default function BarcodeScanModal({ allGames = [], existingLocations = []
             Html5QrcodeSupportedFormats.UPC_E,
             Html5QrcodeSupportedFormats.CODE_128,
             Html5QrcodeSupportedFormats.CODE_39,
+            Html5QrcodeSupportedFormats.CODE_93,
             Html5QrcodeSupportedFormats.QR_CODE,
+            Html5QrcodeSupportedFormats.DATA_MATRIX,
+            Html5QrcodeSupportedFormats.ITF,
+            Html5QrcodeSupportedFormats.CODABAR,
           ]
         },
         (decodedText) => {
@@ -117,6 +121,39 @@ export default function BarcodeScanModal({ allGames = [], existingLocations = []
     isHandlingScanRef.current = true;
     playSuccessHaptic();
 
+    // 1. DÉTECTION INTELLIGENTE D'UN CODE-BARRES D'EMPLACEMENT / TABLETTE
+    let matchedLocation = null;
+    const cleanUpper = cleanCode.toUpperCase();
+
+    if (cleanUpper.startsWith('LOC:') || cleanUpper.startsWith('SHELF:') || cleanUpper.startsWith('TABLETTE:') || cleanUpper.startsWith('EMPLACEMENT:')) {
+      matchedLocation = cleanCode.split(':')[1]?.trim() || '';
+    } else {
+      const foundInExisting = existingLocations.find(l => l.toLowerCase() === cleanCode.toLowerCase());
+      if (foundInExisting) {
+        matchedLocation = foundInExisting;
+      } else if (/^[A-Z][0-9]{1,3}$/i.test(cleanCode) || /^[A-Z]-[0-9]{1,3}$/i.test(cleanCode)) {
+        // Ex: "A1", "C2", "B12", "C-3"
+        matchedLocation = cleanCode.toUpperCase();
+      }
+    }
+
+    if (matchedLocation) {
+      setTargetLocation(matchedLocation);
+      setSuccessToast(`📍 Tablette "${matchedLocation}" activée par scan code-barres !`);
+      setError(null);
+
+      // Si un jeu était déjà en attente d'emplacement, on le valide et on le range immédiatement !
+      if (matchedGame) {
+        await handleSavePlacementDirect(matchedGame, matchedLocation, scannedBarcode);
+      }
+
+      setTimeout(() => {
+        isHandlingScanRef.current = false;
+      }, 1000);
+      return;
+    }
+
+    // 2. CODE-BARRES D'UNE BOÎTE DE JEU (UPC / EAN)
     setScannedBarcode(cleanCode);
     setLookupLoading(true);
     setError(null);
@@ -147,6 +184,35 @@ export default function BarcodeScanModal({ allGames = [], existingLocations = []
       setTimeout(() => {
         isHandlingScanRef.current = false;
       }, 1200);
+    }
+  };
+
+  const handleSavePlacementDirect = async (gameToPlace, locToUse, barcodeToUse) => {
+    if (!gameToPlace || !locToUse) return;
+    setSaving(true);
+    try {
+      const response = await fetch('/api/barcode/lookup', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          gameId: gameToPlace.id,
+          barcode: barcodeToUse || undefined,
+          location: locToUse.trim(),
+        }),
+      });
+
+      if (response.ok && onGamePlaced) {
+        onGamePlaced(gameToPlace.id, locToUse.trim(), barcodeToUse);
+      }
+
+      setSuccessToast(`✅ "${gameToPlace.title}" rangé sur ${locToUse} !`);
+      setMatchedGame(null);
+      setScannedBarcode(null);
+      setCandidates([]);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -253,12 +319,19 @@ export default function BarcodeScanModal({ allGames = [], existingLocations = []
 
             <input
               type="text"
-              placeholder="Ex: B4, A1, Tablette 3..."
+              placeholder="Ex: B4, A1, C1 (ou scannez directement le code-barres de la tablette !)"
               value={targetLocation}
               onChange={(e) => setTargetLocation(e.target.value)}
               className={styles.locationInput}
               disabled={saving}
             />
+
+            <div className={styles.locationHelpTip}>
+              <span>💡</span>
+              <span>
+                <strong>Astuce :</strong> Vous pouvez viser directement le code-barres imprimé de votre tablette (ex: <code>C1</code>, <code>B4</code>) avec la caméra pour la sélectionner automatiquement !
+              </span>
+            </div>
 
             {existingLocations.length > 0 && (
               <div className={styles.suggestionsList}>
