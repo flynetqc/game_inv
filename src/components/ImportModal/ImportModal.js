@@ -93,7 +93,14 @@ export default function ImportModal({ onClose, onImportSuccess }) {
         })
       });
 
-      const data = await response.json();
+      let data = {};
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        const rawText = await response.text();
+        throw new Error(`Le serveur a renvoyé une erreur (Code HTTP ${response.status}). Vérifiez que la mise à jour Vercel est terminée.`);
+      }
 
       if (!response.ok) {
         throw new Error(data.error || "Une erreur est survenue lors de la synchronisation BGG.");
@@ -132,7 +139,13 @@ export default function ImportModal({ onClose, onImportSuccess }) {
         body: formData,
       });
 
-      const data = await response.json();
+      let data = {};
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        throw new Error(`Le serveur a renvoyé une erreur (Code HTTP ${response.status}).`);
+      }
 
       if (!response.ok) {
         throw new Error(data.error || "Une erreur est survenue lors de l'importation.");
