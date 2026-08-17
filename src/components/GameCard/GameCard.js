@@ -128,13 +128,6 @@ export default function GameCard({ game, viewMode = 'grid', onClick, onEditLocat
             ⭐ {game.rating.toFixed(1)}
           </div>
         )}
-
-        {/* Afficher le nombre de parties si supérieur à 0 */}
-        {game.num_plays > 0 && (
-          <div className={styles.playsBadge}>
-            🎲 {game.num_plays} {game.num_plays > 1 ? 'parties' : 'partie'}
-          </div>
-        )}
       </div>
 
       <div className={styles.content}>
@@ -159,6 +152,11 @@ export default function GameCard({ game, viewMode = 'grid', onClick, onEditLocat
           {game.playing_time && (
             <span className={styles.detailItem}>
               ⏳ {game.playing_time} min
+            </span>
+          )}
+          {game.num_plays > 0 && (
+            <span className={styles.playsItem}>
+              🎲 {game.num_plays} {game.num_plays > 1 ? 'parties' : 'partie'}
             </span>
           )}
         </div>
