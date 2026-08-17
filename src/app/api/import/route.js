@@ -288,10 +288,11 @@ export async function POST(request) {
 
 export async function GET() {
   try {
-    const token = getSetting('bgg_api_token') || '4acd22b0-77b1-4c3c-81be-8878a5c9dc2b';
-    return NextResponse.json({ token });
+    const token = process.env.BGG_API_KEY || getSetting('bgg_api_token') || '4acd22b0-77b1-4c3c-81be-8878a5c9dc2b';
+    const username = process.env.BGG_USERNAME || 'flynetqc';
+    return NextResponse.json({ token, username });
   } catch (err) {
     console.error("Erreur lors de la récupération du token sauvegardé:", err);
-    return NextResponse.json({ token: '4acd22b0-77b1-4c3c-81be-8878a5c9dc2b' });
+    return NextResponse.json({ token: '4acd22b0-77b1-4c3c-81be-8878a5c9dc2b', username: 'flynetqc' });
   }
 }
