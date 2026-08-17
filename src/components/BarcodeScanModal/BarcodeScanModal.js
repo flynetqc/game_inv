@@ -49,16 +49,23 @@ export default function BarcodeScanModal({ allGames = [], existingLocations = []
       await qrCodeScanner.start(
         { facingMode: "environment" },
         {
-          fps: 15,
-          qrbox: { width: 280, height: 160 },
+          fps: 20,
+          qrbox: (viewfinderWidth, viewfinderHeight) => {
+            const w = Math.floor(Math.min(viewfinderWidth * 0.95, 340));
+            const h = Math.floor(Math.min(viewfinderHeight * 0.65, 200));
+            return { width: Math.max(w, 240), height: Math.max(h, 140) };
+          },
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true
+          },
           formatsToSupport: [
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.CODE_39,
+            Html5QrcodeSupportedFormats.CODE_93,
             Html5QrcodeSupportedFormats.EAN_13,
             Html5QrcodeSupportedFormats.EAN_8,
             Html5QrcodeSupportedFormats.UPC_A,
             Html5QrcodeSupportedFormats.UPC_E,
-            Html5QrcodeSupportedFormats.CODE_128,
-            Html5QrcodeSupportedFormats.CODE_39,
-            Html5QrcodeSupportedFormats.CODE_93,
             Html5QrcodeSupportedFormats.QR_CODE,
             Html5QrcodeSupportedFormats.DATA_MATRIX,
             Html5QrcodeSupportedFormats.ITF,
@@ -121,18 +128,21 @@ export default function BarcodeScanModal({ allGames = [], existingLocations = []
     isHandlingScanRef.current = true;
     playSuccessHaptic();
 
-    // 1. DÉTECTION INTELLIGENTE D'UN CODE-BARRES D'EMPLACEMENT / TABLETTE
+    // 1. DÉTECTION INTELLIGENTE D'UN CODE-BARRES D'EMPLACEMENT / TABLETTE (ex: "LOC B2", "LOC-B2", "B2", "C1")
     let matchedLocation = null;
-    const cleanUpper = cleanCode.toUpperCase();
+    const locPrefixRegex = /^(LOCATION|LOC|SHELF|TABLETTE|EMPLACEMENT)[\s:_\-]*\s*(.+)$/i;
+    const matchPrefix = cleanCode.match(locPrefixRegex);
 
-    if (cleanUpper.startsWith('LOC:') || cleanUpper.startsWith('SHELF:') || cleanUpper.startsWith('TABLETTE:') || cleanUpper.startsWith('EMPLACEMENT:')) {
-      matchedLocation = cleanCode.split(':')[1]?.trim() || '';
+    if (matchPrefix) {
+      const extractedLoc = matchPrefix[2].trim();
+      const foundExact = existingLocations.find(l => l.toLowerCase() === extractedLoc.toLowerCase());
+      const foundFull = existingLocations.find(l => l.toLowerCase() === cleanCode.toLowerCase());
+      matchedLocation = foundExact || foundFull || extractedLoc.toUpperCase();
     } else {
       const foundInExisting = existingLocations.find(l => l.toLowerCase() === cleanCode.toLowerCase());
       if (foundInExisting) {
         matchedLocation = foundInExisting;
       } else if (/^[A-Z][0-9]{1,3}$/i.test(cleanCode) || /^[A-Z]-[0-9]{1,3}$/i.test(cleanCode)) {
-        // Ex: "A1", "C2", "B12", "C-3"
         matchedLocation = cleanCode.toUpperCase();
       }
     }
