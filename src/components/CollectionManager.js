@@ -1043,7 +1043,7 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
                         onClick={() => { setIsBarcodeScanOpen(true); setIsMenuOpen(false); }}
                       >
                         <span className={styles.menuItemIcon}>📷</span>
-                        <span>Scanner Code-Barres</span>
+                        <span>Scanner Tablette (QR / Code)</span>
                       </button>
 
                       <button 
@@ -1141,13 +1141,13 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
         />
       )}
 
-      {/* Modale de Scanner de Code-Barres */}
+      {/* Modale de Scanner de Tablette & Inventaire */}
       {isBarcodeScanOpen && (
         <BarcodeScanModal
           allGames={games}
           existingLocations={allExistingLocations}
           onClose={() => setIsBarcodeScanOpen(false)}
-          onGamePlaced={handleBarcodeGamePlaced}
+          onSelectGame={setSelectedGame}
         />
       )}
 
