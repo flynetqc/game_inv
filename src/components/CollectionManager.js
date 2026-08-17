@@ -960,15 +960,6 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
 
           {/* Zone principale (Collection + Barre d'outils) */}
           <main className={styles.main}>
-            {missingImagesCount > 0 && (
-              <div className={styles.imageNotice}>
-                <span>🖼️ <strong>{missingImagesCount} jeu{missingImagesCount > 1 ? 'x' : ''}</strong> dans votre collection n'ont pas d'image sur BGG (ex: promos/extensions non publiées).</span>
-                <button onClick={() => setIsImportOpen(true)} className={styles.noticeBtn}>
-                  🔄 Réimporter un CSV / Actualiser
-                </button>
-              </div>
-            )}
-
             <div className={styles.toolbar}>
               <div className={styles.resultsInfo}>
                 <h2>Ma Collection</h2>

@@ -270,6 +270,13 @@ export default function ImportModal({ onClose, onImportSuccess }) {
                 </span>
               </div>
 
+              <div className={styles.infoBanner}>
+                <span>🖼️</span>
+                <span>
+                  <strong>Note sur les images :</strong> Certains rares éléments (ex: micro-promos, tuiles bonus non éditées) peuvent ne pas avoir d'image officielle sur BGG et s'affichent avec une icône de substitution 🎲.
+                </span>
+              </div>
+
               {error && <div className={styles.error}>{error}</div>}
 
               <div className={styles.actions}>
@@ -325,6 +332,13 @@ export default function ImportModal({ onClose, onImportSuccess }) {
                     </div>
                   )}
                 </div>
+              </div>
+
+              <div className={styles.infoBanner}>
+                <span>🖼️</span>
+                <span>
+                  <strong>Note sur les images :</strong> Certains rares éléments (ex: micro-promos, tuiles bonus non éditées) peuvent ne pas avoir d'image officielle sur BGG et s'affichent avec une icône de substitution 🎲.
+                </span>
               </div>
 
               {error && <div className={styles.error}>{error}</div>}
