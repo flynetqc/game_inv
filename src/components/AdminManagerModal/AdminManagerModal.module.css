@@ -501,8 +501,38 @@
   padding: 1.25rem 1.5rem;
   border-top: 1px solid var(--border-color);
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
   background: #f8fafc;
+  flex-wrap: wrap;
+}
+
+.saveCloudBtn {
+  background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%);
+  color: white;
+  border: none;
+  padding: 0.7rem 1.4rem;
+  border-radius: 10px;
+  font-weight: 800;
+  font-size: 0.92rem;
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(234, 88, 12, 0.25);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.saveCloudBtn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 5px 14px rgba(234, 88, 12, 0.35);
+}
+
+.saveCloudBtn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
 }
 
 .closeFooterBtn {

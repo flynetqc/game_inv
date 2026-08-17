@@ -92,29 +92,7 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
     // 2. Synchronisation Cloud Supabase (temps réel multi-appareils)
     const syncWithCloud = async () => {
       try {
-        // a. Pousser d'abord les modifications du navigateur vers Supabase pour ne rien perdre
-        const savedOverrides = localStorage.getItem('geekshelf_game_overrides');
-        if (savedOverrides) {
-          const localObj = JSON.parse(savedOverrides);
-          if (localObj && typeof localObj === 'object') {
-            const entries = Object.entries(localObj).filter(([id, val]) => {
-              const numId = parseInt(id, 10);
-              return !isNaN(numId) && numId > 0 && val && typeof val === 'object';
-            });
-            if (entries.length > 0) {
-              const uploadBatch = entries.map(([id, val]) => ({
-                game_id: parseInt(id, 10),
-                location: val.location !== undefined ? val.location : undefined,
-                barcode: val.barcode !== undefined ? val.barcode : undefined,
-                custom_tags: val.customTags || undefined,
-                updated_at: new Date().toISOString()
-              }));
-              await supabase.from('game_overrides').upsert(uploadBatch);
-            }
-          }
-        }
-
-        // b. Récupérer l'état complet depuis Supabase Cloud
+        // Récupérer l'état faisant autorité depuis Supabase Cloud
         const { data, error } = await supabase.from('game_overrides').select('*');
         if (!error && data && data.length > 0) {
           const metaRow = data.find(item => item.game_id === -1);
@@ -713,6 +691,59 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
     }
   };
 
+  // Sauvegarde complète explicite et commit vers Supabase Cloud
+  const handleForceSyncCloud = async () => {
+    // 1. Sauvegarder la liste des emplacements personnalisés
+    await supabase.from('game_overrides').upsert({
+      game_id: -1,
+      custom_tags: customLocations,
+      updated_at: new Date().toISOString()
+    });
+
+    // 2. Sauvegarder la liste des mots-clés (tags) définis
+    await supabase.from('game_overrides').upsert({
+      game_id: -2,
+      custom_tags: customDefinedTags,
+      updated_at: new Date().toISOString()
+    });
+
+    // 3. Sauvegarder toutes les boîtes modifiées (location, barcode, customTags)
+    const modifiedGames = games.filter(
+      g => (g.location && String(g.location).trim() !== '') || 
+           (g.barcode && String(g.barcode).trim() !== '') || 
+           (Array.isArray(g.customTags) && g.customTags.length > 0)
+    );
+    
+    if (modifiedGames.length > 0) {
+      const batch = modifiedGames.map(g => ({
+        game_id: g.id,
+        location: g.location || undefined,
+        barcode: g.barcode || undefined,
+        custom_tags: g.customTags || undefined,
+        updated_at: new Date().toISOString()
+      }));
+      await supabase.from('game_overrides').upsert(batch);
+    }
+
+    // Mettre à jour le cache local du navigateur
+    const updatedLocal = {};
+    modifiedGames.forEach(g => {
+      updatedLocal[g.id] = {
+        location: g.location,
+        barcode: g.barcode,
+        customTags: g.customTags
+      };
+    });
+    localStorage.setItem('geekshelf_game_overrides', JSON.stringify(updatedLocal));
+    localStorage.setItem('geekshelf_custom_locations', JSON.stringify(customLocations));
+    localStorage.setItem('geekshelf_defined_tags', JSON.stringify(customDefinedTags));
+
+    return {
+      success: true,
+      message: `✅ Sauvegarde Cloud réussie ! ${modifiedGames.length} jeux avec emplacements et ${customLocations.length} tablettes synchronisés.`
+    };
+  };
+
   // Réinitialiser tous les filtres
   const handleResetFilters = () => {
     setSearchQuery('');
@@ -1170,6 +1201,7 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
           onTagDeleted={handleAdminTagDeleted}
           onTagCreated={handleAdminTagCreated}
           onBarcodeRemoved={handleBarcodeRemoved}
+          onForceSyncCloud={handleForceSyncCloud}
         />
       )}
 

@@ -15,6 +15,7 @@ export default function AdminManagerModal({
   onTagDeleted,
   onTagCreated,
   onBarcodeRemoved,
+  onForceSyncCloud,
 }) {
   const [activeTab, setActiveTab] = useState('locations'); // 'locations', 'tags' ou 'barcodes'
   const [searchQuery, setSearchQuery] = useState('');
@@ -27,7 +28,28 @@ export default function AdminManagerModal({
   const [editValue, setEditValue] = useState('');
 
   const [loading, setLoading] = useState(false);
+  const [cloudSaving, setCloudSaving] = useState(false);
   const [feedback, setFeedback] = useState(null);
+
+  const handleSaveAndSyncCloud = async () => {
+    if (!onForceSyncCloud) return;
+    setCloudSaving(true);
+    setFeedback(null);
+    try {
+      const res = await onForceSyncCloud();
+      setFeedback({
+        type: 'success',
+        message: res?.message || '✅ Sauvegarde Cloud réussie ! Toutes vos modifications sont enregistrées dans la base de données.'
+      });
+    } catch (err) {
+      setFeedback({
+        type: 'error',
+        message: `Erreur de synchronisation Cloud : ${err.message}`
+      });
+    } finally {
+      setCloudSaving(false);
+    }
+  };
 
   // Calcul du nombre de jeux par emplacement
   const locationGameCounts = {};
@@ -744,6 +766,17 @@ export default function AdminManagerModal({
 
         {/* Pied de page */}
         <div className={styles.footer}>
+          {onForceSyncCloud && (
+            <button
+              type="button"
+              className={styles.saveCloudBtn}
+              onClick={handleSaveAndSyncCloud}
+              disabled={loading || cloudSaving}
+              title="Enregistrer et pousser toutes les configurations vers Supabase Cloud"
+            >
+              {cloudSaving ? '⏳ Synchronisation Cloud...' : '💾 Sauvegarder & Synchroniser dans le Cloud'}
+            </button>
+          )}
           <button type="button" className={styles.closeFooterBtn} onClick={onClose}>
             Fermer
           </button>
