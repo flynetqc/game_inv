@@ -4,14 +4,22 @@ import { useState, useRef, useEffect } from 'react';
 import styles from './ImportModal.module.css';
 
 export default function ImportModal({ onClose, onImportSuccess }) {
-  const [file, setFile] = useState(null);
+  const [activeTab, setActiveTab] = useState('bgg'); // 'bgg' ou 'csv'
+  
+  // États BGG API
+  const [username, setUsername] = useState('flynetqc');
   const [token, setToken] = useState('');
+  
+  // États CSV
+  const [file, setFile] = useState(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const fileInputRef = useRef(null);
+
+  // États génériques
   const [loading, setLoading] = useState(false);
   const [statusText, setStatusText] = useState('');
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
-  const [isDragOver, setIsDragOver] = useState(false);
-  const fileInputRef = useRef(null);
 
   useEffect(() => {
     fetch('/api/import')
@@ -64,20 +72,60 @@ export default function ImportModal({ onClose, onImportSuccess }) {
     fileInputRef.current.click();
   };
 
-  const handleUpload = async () => {
+  // 1. Synchronisation directe via l'API BGG XML2
+  const handleBggSync = async () => {
+    if (!username.trim()) {
+      setError("Veuillez entrer votre nom d'utilisateur BoardGameGeek.");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setStatusText(`Interrogation de l'API BGG pour "${username.trim()}"...`);
+
+    try {
+      const response = await fetch('/api/bgg/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: username.trim(),
+          bgg_api_token: token.trim()
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Une erreur est survenue lors de la synchronisation BGG.");
+      }
+
+      setResult(data);
+      setStatusText(data.message || "Synchronisation BGG terminée avec succès !");
+      if (onImportSuccess) {
+        onImportSuccess(data.games);
+      }
+    } catch (err) {
+      console.error(err);
+      setError(err.message || "Impossible de contacter l'API BGG.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 2. Importation manuelle via fichier CSV
+  const handleCsvUpload = async () => {
     if (!file) return;
 
     setLoading(true);
     setError(null);
-    setStatusText("Lecture de votre fichier CSV...");
+    setStatusText("Lecture et analyse de votre fichier CSV...");
 
     const formData = new FormData();
     formData.append('file', file);
     formData.append('bgg_api_token', token.trim());
 
     try {
-      // Étape 1 : Lecture du CSV & Appel BGG API
-      setStatusText("Enrichissement des données avec BoardGameGeek (images, thèmes, mécaniques)... Cela peut prendre une minute.");
+      setStatusText("Enrichissement des jeux avec les métadonnées BGG...");
       
       const response = await fetch('/api/import', {
         method: 'POST',
@@ -97,7 +145,7 @@ export default function ImportModal({ onClose, onImportSuccess }) {
       }
     } catch (err) {
       console.error(err);
-      setError(err.message || "Impossible de contacter l'API locale.");
+      setError(err.message || "Impossible d'importer le fichier.");
     } finally {
       setLoading(false);
     }
@@ -107,7 +155,7 @@ export default function ImportModal({ onClose, onImportSuccess }) {
     <div className="modal-backdrop" onClick={!loading ? onClose : undefined}>
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
         <div className={styles.header}>
-          <h2>Importer votre collection</h2>
+          <h2>Synchroniser votre collection</h2>
           {!loading && (
             <button className={styles.closeButton} onClick={onClose}>
               &times;
@@ -115,35 +163,122 @@ export default function ImportModal({ onClose, onImportSuccess }) {
           )}
         </div>
 
+        {/* Sélecteur d'onglets */}
+        {!result && !loading && (
+          <div className={styles.tabNav}>
+            <button
+              type="button"
+              className={`${styles.tabBtn} ${activeTab === 'bgg' ? styles.activeTab : ''}`}
+              onClick={() => setActiveTab('bgg')}
+            >
+              <span>🔄 API BGG Direct</span>
+              <span className={styles.recommendedBadge}>Recommandé</span>
+            </button>
+            <button
+              type="button"
+              className={`${styles.tabBtn} ${activeTab === 'csv' ? styles.activeTab : ''}`}
+              onClick={() => setActiveTab('csv')}
+            >
+              <span>📄 Fichier CSV</span>
+            </button>
+          </div>
+        )}
+
         <div className={styles.body}>
-          {!result && !loading && (
+          {/* Écran de chargement */}
+          {loading && (
+            <div className={styles.loadingState}>
+              <div className={styles.spinner} />
+              <h3 className={styles.loadingTitle}>Synchronisation en cours</h3>
+              <p className={styles.loadingText}>{statusText}</p>
+              <span className={styles.loadingSub}>
+                Note : BGG peut mettre quelques secondes à générer le flux de votre collection (code HTTP 202).
+              </span>
+            </div>
+          )}
+
+          {/* Écran de résultat / succès */}
+          {result && !loading && (
+            <div className={styles.resultState}>
+              <div className={styles.successIcon}>🎉</div>
+              <h3>Collection synchronisée !</h3>
+              <p className={styles.resultSummary}>
+                {result.message || `${result.total || result.importedCount || 0} jeux traités avec succès.`}
+              </p>
+              <div className={styles.actions}>
+                <button className={styles.submitBtn} onClick={onClose}>
+                  Voir ma collection
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Formulaire API BGG Direct */}
+          {!result && !loading && activeTab === 'bgg' && (
             <>
+              <p className={styles.instructions}>
+                Synchronisez instantanément tous vos jeux possédés depuis <strong>BoardGameGeek</strong> via leur API officielle en un seul clic. Vos emplacements de tablettes et codes-barres sont conservés.
+              </p>
+
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>
+                  👤 Nom d'utilisateur BGG :
+                </label>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Ex: flynetqc"
+                  className={styles.textInput}
+                />
+              </div>
+
               <div className={styles.tokenSection}>
                 <label className={styles.tokenLabel}>
-                  🔑 Jeton d'accès BGG API (Facultatif)
+                  🔑 Clé d'API BGG (Bearer Token) :
                   <a 
-                    href="https://boardgamegeek.com/applications" 
+                    href="https://boardgamegeek.com/geekaccount/api" 
                     target="_blank" 
                     rel="noopener noreferrer" 
                     className={styles.tokenLink}
                   >
-                    Créer un jeton ↗
+                    Obtenir ma clé BGG ↗
                   </a>
                 </label>
                 <input 
                   type="password"
-                  placeholder="Laisser vide pour importer sans images ni thèmes..."
+                  placeholder="Collez votre clé API BGG ici..."
                   value={token}
                   onChange={(e) => setToken(e.target.value)}
                   className={styles.tokenInput}
                 />
                 <span className={styles.tokenHelper}>
-                  Sans jeton, les jeux sont importés immédiatement avec les données du CSV, mais sans pochettes ni thématiques.
+                  La clé est mémorisée dans votre environnement pour que vos futures synchronisations se fassent en 1 clic.
                 </span>
               </div>
 
+              {error && <div className={styles.error}>{error}</div>}
+
+              <div className={styles.actions}>
+                <button className={styles.cancelBtn} onClick={onClose}>
+                  Annuler
+                </button>
+                <button 
+                  className={styles.submitBtn} 
+                  disabled={!username.trim()}
+                  onClick={handleBggSync}
+                >
+                  🚀 Lancer la synchro BGG
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* Formulaire Import CSV Manuel */}
+          {!result && !loading && activeTab === 'csv' && (
+            <>
               <p className={styles.instructions}>
-                Exportez votre collection sur BoardGameGeek au format <strong>.csv</strong>, puis glissez-déposez le fichier ci-dessous.
+                Si vous préférez un import hors-ligne, exportez votre collection sur BoardGameGeek au format <strong>.csv</strong>, puis glissez-déposez le fichier ci-dessous.
               </p>
               
               <div 
@@ -182,63 +317,18 @@ export default function ImportModal({ onClose, onImportSuccess }) {
               {error && <div className={styles.error}>{error}</div>}
 
               <div className={styles.actions}>
-                <button 
-                  className={styles.cancelButton} 
-                  onClick={onClose}
-                >
+                <button className={styles.cancelBtn} onClick={onClose}>
                   Annuler
                 </button>
                 <button 
-                  className={styles.importButton} 
+                  className={styles.submitBtn} 
                   disabled={!file}
-                  onClick={handleUpload}
+                  onClick={handleCsvUpload}
                 >
-                  Démarrer l'importation
+                  📥 Importer le CSV
                 </button>
               </div>
             </>
-          )}
-
-          {loading && (
-            <div className={styles.loadingContainer}>
-              <div className={styles.spinner}></div>
-              <h3>Importation en cours...</h3>
-              <p className={styles.loadingStatus}>{statusText}</p>
-              <div className={styles.loadingWarning}>
-                Ne fermez pas cette fenêtre. BoardGameGeek limite le débit des requêtes, ce qui peut rallonger le temps de chargement pour les grandes collections.
-              </div>
-            </div>
-          )}
-
-          {result && (
-            <div className={styles.successContainer}>
-              <div className={styles.successIcon}>🎉</div>
-              <h3>Importation réussie !</h3>
-              <p className={styles.successMessage}>{result.message}</p>
-              
-              <div className={styles.summaryStats}>
-                <div className={styles.statBox}>
-                  <span className={styles.statVal}>{result.totalFound}</span>
-                  <span className={styles.statLabel}>Trouvés dans le CSV</span>
-                </div>
-                <div className={styles.statBox}>
-                  <span className={styles.statVal}>{result.totalImported}</span>
-                  <span className={styles.statLabel}>Enregistrés en DB</span>
-                </div>
-              </div>
-
-              <div className={styles.actionsSingle}>
-                <button 
-                  className={styles.closeSuccessButton}
-                  onClick={() => {
-                    onClose();
-                    window.location.reload();
-                  }}
-                >
-                  Voir ma collection
-                </button>
-              </div>
-            </div>
           )}
         </div>
       </div>

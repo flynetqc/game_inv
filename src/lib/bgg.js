@@ -114,9 +114,7 @@ export function parseBggXml(xmlText) {
   return items;
 }
 
-/**
- * Récupère les détails de plusieurs jeux de société depuis l'API BGG par leurs IDs.
- * Gère automatiquement le code 202 (BGG met la requête en file d'attente) avec des tentatives différées.
+import { XMLParser } from 'fast-xml-parser';
 import { getSetting } from './db.js';
 
 /**
@@ -129,7 +127,7 @@ import { getSetting } from './db.js';
 export async function fetchBggDetails(ids, token = '') {
   if (!ids || ids.length === 0) return [];
 
-  const activeToken = token || getSetting('bgg_api_token') || '4acd22b0-77b1-4c3c-81be-8878a5c9dc2b';
+  const activeToken = token || process.env.BGG_API_KEY || getSetting('bgg_api_token') || '';
   
   const url = `https://boardgamegeek.com/xmlapi2/thing?id=${ids.join(',')}`;
   let attempts = 0;
@@ -140,19 +138,17 @@ export async function fetchBggDetails(ids, token = '') {
     'User-Agent': 'GeekShelf/1.0.0 (Local board game collection manager; client-side/self-hosted)'
   };
   if (activeToken) {
-    headers['Authorization'] = `Bearer ${activeToken}`;
+    headers['Authorization'] = `Bearer ${activeToken.trim()}`;
   }
   
   while (attempts < maxAttempts) {
     try {
       const response = await fetch(url, { headers });
       
-      // BGG renvoie parfois 202 (Accepted) lorsque la requête doit être générée côté serveur.
-      // Dans ce cas, il faut attendre et réessayer.
       if (response.status === 202) {
         attempts++;
         console.log(`BGG API a renvoyé 202 (En attente). Tentative de reconnexion ${attempts}/${maxAttempts}...`);
-        await delay(1500 * attempts); // Délai progressif
+        await delay(1500 * attempts);
         continue;
       }
       
@@ -171,4 +167,134 @@ export async function fetchBggDetails(ids, token = '') {
   }
   
   throw new Error("Impossible de récupérer les détails BGG après plusieurs tentatives.");
+}
+
+/**
+ * Récupère l'ensemble de la collection possédée d'un utilisateur BGG (own=1) via l'API XML2.
+ * @param {string} username Nom d'utilisateur BGG (ex: 'flynetqc')
+ * @param {string} token Clé d'API Bearer de BGG
+ * @returns {Promise<Array>} Liste des jeux de la collection
+ */
+export async function fetchBggUserCollection(username = 'flynetqc', token = '') {
+  const activeUser = username || process.env.BGG_USERNAME || 'flynetqc';
+  const activeToken = token || process.env.BGG_API_KEY || getSetting('bgg_api_token') || '';
+
+  const url = `https://boardgamegeek.com/xmlapi2/collection?username=${encodeURIComponent(activeUser)}&stats=1&own=1`;
+  let attempts = 0;
+  const maxAttempts = 10;
+  const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+  const headers = {
+    'User-Agent': 'GeekShelf/1.0.0 (Local board game collection manager; client-side/self-hosted)'
+  };
+  if (activeToken) {
+    headers['Authorization'] = `Bearer ${activeToken.trim()}`;
+  }
+
+  while (attempts < maxAttempts) {
+    try {
+      const response = await fetch(url, { headers });
+
+      if (response.status === 202) {
+        attempts++;
+        console.log(`BGG API génère la collection de ${activeUser} (202 Accepted). Attente ${attempts}/${maxAttempts}...`);
+        await delay(2000);
+        continue;
+      }
+
+      if (response.status === 401 || response.status === 403) {
+        throw new Error("Clé API BGG non valide ou manquante (Erreur 401/403). Veuillez fournir une clé API BGG valide.");
+      }
+
+      if (!response.ok) {
+        throw new Error(`L'API BGG a répondu avec le statut ${response.status}`);
+      }
+
+      const xmlText = await response.text();
+      if (!xmlText || !xmlText.includes('<items')) {
+        attempts++;
+        await delay(2000);
+        continue;
+      }
+
+      return parseBggCollectionXml(xmlText);
+    } catch (error) {
+      console.error(`Erreur récupération collection BGG (tentative ${attempts + 1}):`, error);
+      attempts++;
+      if (attempts >= maxAttempts) throw error;
+      await delay(2000);
+    }
+  }
+
+  throw new Error("Impossible de récupérer la collection BGG après plusieurs tentatives.");
+}
+
+/**
+ * Parse le XML de collection BGG retourné par /xmlapi2/collection
+ * @param {string} xmlText
+ * @returns {Array} Liste des jeux formatés
+ */
+export function parseBggCollectionXml(xmlText) {
+  const parser = new XMLParser({
+    ignoreAttributes: false,
+    attributeNamePrefix: '@_',
+    textNodeName: '#text',
+  });
+
+  const parsed = parser.parse(xmlText);
+  if (!parsed || !parsed.items || !parsed.items.item) {
+    return [];
+  }
+
+  const rawItems = Array.isArray(parsed.items.item) ? parsed.items.item : [parsed.items.item];
+
+  return rawItems.map(item => {
+    const id = parseInt(item['@_objectid'], 10);
+    const subtype = item['@_subtype'] || 'boardgame';
+    const isExpansion = subtype === 'boardgameexpansion';
+
+    let title = '';
+    if (typeof item.name === 'object' && item.name !== null) {
+      title = item.name['#text'] || '';
+    } else {
+      title = String(item.name || '');
+    }
+    title = decodeEntities(title);
+
+    const year_published = item.yearpublished ? parseInt(item.yearpublished, 10) : null;
+    const image_url = typeof item.image === 'string' ? item.image : (item.image?.['#text'] || null);
+    const thumbnail_url = typeof item.thumbnail === 'string' ? item.thumbnail : (item.thumbnail?.['#text'] || null);
+
+    const stats = item.stats || {};
+    const min_players = stats['@_minplayers'] ? parseInt(stats['@_minplayers'], 10) : null;
+    const max_players = stats['@_maxplayers'] ? parseInt(stats['@_maxplayers'], 10) : null;
+    const min_playtime = stats['@_minplaytime'] ? parseInt(stats['@_minplaytime'], 10) : null;
+    const max_playtime = stats['@_maxplaytime'] ? parseInt(stats['@_maxplaytime'], 10) : null;
+    const playing_time = stats['@_playingtime'] ? parseInt(stats['@_playingtime'], 10) : null;
+
+    let rating = null;
+    if (stats.rating && stats.rating['@_value'] && stats.rating['@_value'] !== 'N/A') {
+      rating = parseFloat(stats.rating['@_value']);
+    } else if (stats.rating && stats.rating.average && stats.rating.average['@_value']) {
+      rating = parseFloat(stats.rating.average['@_value']);
+    }
+
+    const num_plays = item.numplays ? parseInt(item.numplays, 10) : 0;
+
+    return {
+      id,
+      title,
+      item_type: isExpansion ? 'expansion' : 'standalone',
+      year_published,
+      image_url,
+      thumbnail_url,
+      min_players,
+      max_players,
+      min_playtime,
+      max_playtime,
+      playing_time,
+      rating,
+      num_plays
+    };
+  });
 }

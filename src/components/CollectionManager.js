@@ -262,6 +262,25 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
     }
   };
 
+  const handleImportOrSyncSuccess = (refreshedGames) => {
+    if (Array.isArray(refreshedGames) && refreshedGames.length > 0) {
+      setGames(prevGames => {
+        const prevMap = new Map(prevGames.map(g => [g.id, g]));
+        return refreshedGames.map(rg => {
+          const existing = prevMap.get(rg.id);
+          return {
+            ...rg,
+            location: existing?.location !== undefined ? existing.location : rg.location,
+            barcode: existing?.barcode !== undefined ? existing.barcode : rg.barcode,
+            customTags: existing?.customTags || rg.customTags
+          };
+        });
+      });
+    } else {
+      window.location.reload();
+    }
+  };
+
   // Traiter la mise à jour après un scan de code-barres (synchronisé avec Supabase)
   const handleBarcodeGamePlaced = async (gameId, targetLocation, barcode) => {
     setGames(prevGames =>
@@ -1061,8 +1080,8 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
                         className={styles.menuItem}
                         onClick={() => { setIsImportOpen(true); setIsMenuOpen(false); }}
                       >
-                        <span className={styles.menuItemIcon}>📥</span>
-                        <span>Réimporter un CSV</span>
+                        <span className={styles.menuItemIcon}>🔄</span>
+                        <span>Synchro BGG (API / CSV)</span>
                       </button>
                     </div>
                   )}
@@ -1102,9 +1121,12 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
         </div>
       )}
 
-      {/* Modale d'importation */}
+      {/* Modale d'importation & Synchronisation BGG */}
       {isImportOpen && (
-        <ImportModal onClose={() => setIsImportOpen(false)} />
+        <ImportModal 
+          onClose={() => setIsImportOpen(false)} 
+          onImportSuccess={handleImportOrSyncSuccess}
+        />
       )}
 
       {/* Modale de détails de jeu */}
