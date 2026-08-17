@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from 'react';
 import GameCard from './GameCard/GameCard';
 import GameDetailModal from './GameDetailModal/GameDetailModal';
 import ImportModal from './ImportModal/ImportModal';
-import TravelTagModal from './TravelTagModal/TravelTagModal';
 import InventorySyncModal from './InventorySyncModal/InventorySyncModal';
 import ShelfView from './ShelfView/ShelfView';
 import BarcodeScanModal from './BarcodeScanModal/BarcodeScanModal';
@@ -34,7 +33,6 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
 
   // États pour les modales et le menu
   const [isImportOpen, setIsImportOpen] = useState(false);
-  const [isTravelOpen, setIsTravelOpen] = useState(false);
   const [isSyncOpen, setIsSyncOpen] = useState(false);
   const [isBarcodeScanOpen, setIsBarcodeScanOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
@@ -298,36 +296,6 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
     } catch (e) {
       console.warn("Erreur sync Supabase:", e);
     }
-  };
-
-  // Associer en lot un tag à plusieurs jeux
-  const handleTagApplied = (tagName, gameIds) => {
-    setGames(prevGames =>
-      prevGames.map(game => {
-        if (gameIds.includes(game.id)) {
-          const currentTags = game.customTags || [];
-          if (!currentTags.includes(tagName)) {
-            return { ...game, customTags: [...currentTags, tagName] };
-          }
-        }
-        return game;
-      })
-    );
-
-    try {
-      const savedOverrides = JSON.parse(localStorage.getItem('geekshelf_game_overrides') || '{}');
-      gameIds.forEach(id => {
-        const current = savedOverrides[id]?.customTags || [];
-        if (!current.includes(tagName)) {
-          savedOverrides[id] = { ...(savedOverrides[id] || {}), customTags: [...current, tagName] };
-        }
-      });
-      localStorage.setItem('geekshelf_game_overrides', JSON.stringify(savedOverrides));
-    } catch (e) {
-      console.error("Erreur sauvegarde localStorage:", e);
-    }
-
-    setSelectedCustomTag(tagName); // Filtrer automatiquement sur ce tag
   };
 
   // Lancer l'édition rapide de la localisation
@@ -1080,15 +1048,6 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
                       <button 
                         type="button"
                         className={styles.menuItem}
-                        onClick={() => { setIsTravelOpen(true); setIsMenuOpen(false); }}
-                      >
-                        <span className={styles.menuItemIcon}>🔍</span>
-                        <span>Assistant Voyage</span>
-                      </button>
-
-                      <button 
-                        type="button"
-                        className={styles.menuItem}
                         onClick={() => { setIsAdminOpen(true); setIsMenuOpen(false); }}
                       >
                         <span className={styles.menuItemIcon}>⚙️</span>
@@ -1158,14 +1117,6 @@ export default function CollectionManager({ initialGames = [], allMechanics = []
             handleUpdateGame(gameId, fields);
             setSelectedGame(prev => prev ? { ...prev, ...fields } : null);
           }}
-        />
-      )}
-
-      {/* Modale d'assistant de voyage (auto-tagging) */}
-      {isTravelOpen && (
-        <TravelTagModal 
-          onClose={() => setIsTravelOpen(false)}
-          onTagApplied={handleTagApplied}
         />
       )}
 
